@@ -32,7 +32,7 @@ class AreaSelector:
         self.overlay.configure(bg='black')
         self.overlay.overrideredirect(True)
 
-        # Canvas para dibujar la selecciÃ³n
+        # Canvas para dibujar la selección
         self.canvas = tk.Canvas(self.overlay, highlightthickness=0, bg='black')
         self.canvas.pack(fill=tk.BOTH, expand=True)
 
@@ -46,7 +46,7 @@ class AreaSelector:
         self.canvas.create_text(
             self.overlay.winfo_screenwidth() // 2,
             50,
-            text="Haz clic y arrastra para seleccionar el Ã¡rea a capturar\nPresiona ESC para cancelar",
+            text="Haz clic y arrastra para seleccionar el área a capturar\nPresiona ESC para cancelar",
             fill='white',
             font=('Arial', 16),
             justify=tk.CENTER
@@ -73,7 +73,7 @@ class AreaSelector:
             self.end_x = event.x
             self.end_y = event.y
 
-            # Asegurar que las coordenadas estÃ©n en el orden correcto
+            # Asegurar que las coordenadas estén en el orden correcto
             x1 = min(self.start_x, self.end_x)
             y1 = min(self.start_y, self.end_y)
             x2 = max(self.start_x, self.end_x)
@@ -82,7 +82,7 @@ class AreaSelector:
             # Cerrar overlay antes de capturar
             self.overlay.destroy()
 
-            # Capturar Ã¡rea seleccionada
+            # Capturar área seleccionada
             self.capture_area(x1, y1, x2, y2)
 
     def cancel_selection(self, event):
@@ -91,10 +91,10 @@ class AreaSelector:
 
     def capture_area(self, x1, y1, x2, y2):
         try:
-            # PequeÃ±a pausa para asegurar que el overlay se cierre completamente
+            # Pequeña pausa para asegurar que el overlay se cierre completamente
             time.sleep(0.1)
 
-            # Capturar el Ã¡rea seleccionada
+            # Capturar el área seleccionada
             screenshot = ImageGrab.grab(bbox=(x1, y1, x2, y2))
 
             # Generar nombre de archivo con timestamp
@@ -170,7 +170,7 @@ class HTTPServer:
 
         @self.app.route('/api/execute/task', methods=['POST'])
         def execute_task():
-            """Ejecuta una tarea especÃ­fica"""
+            """Ejecuta una tarea específica"""
             try:
                 data = request.get_json()
                 if not data or 'task_name' not in data:
@@ -230,7 +230,7 @@ class HTTPServer:
 
         @self.app.route('/api/execute/custom-queue', methods=['POST'])
         def execute_custom_queue():
-            """Ejecuta una cola personalizada con configuraciÃ³n avanzada"""
+            """Ejecuta una cola personalizada con configuración avanzada"""
             try:
                 data = request.get_json()
                 if not data or 'queue' not in data:
@@ -238,7 +238,7 @@ class HTTPServer:
 
                 queue_config = data['queue']
 
-                # Validar configuraciÃ³n de cola
+                # Validar configuración de cola
                 if 'tasks' not in queue_config:
                     return jsonify({'error': 'tasks array is required in queue'}), 400
 
@@ -247,7 +247,7 @@ class HTTPServer:
                 repeat_mode = queue_config.get('repeat', False)
                 repeat_count = queue_config.get('repeat_count', 0)  # 0 = infinito
 
-                # Procesar tareas con configuraciÃ³n individual
+                # Procesar tareas con configuración individual
                 processed_tasks = []
                 for task_item in tasks:
                     if isinstance(task_item, str):
@@ -259,7 +259,7 @@ class HTTPServer:
                             'pause_after': global_pause
                         })
                     elif isinstance(task_item, dict):
-                        # Tarea con configuraciÃ³n
+                        # Tarea con configuración
                         task_name = task_item.get('name')
                         if not task_name or task_name not in self.recorder.tasks:
                             return jsonify({'error': f'Task "{task_name}" not found'}), 404
@@ -342,7 +342,7 @@ class HTTPServer:
             return False, "Server is not running"
 
         # Flask no tiene una forma limpia de detener el servidor desde otro hilo
-        # En un entorno de producciÃ³n usarÃ­as un servidor WSGI apropiado
+        # En un entorno de producción usarías un servidor WSGI apropiado
         self.is_running = False
         return True, "Server stop requested"
 
@@ -392,7 +392,7 @@ class MouseKeyboardRecorder:
         self.mouse_listener = None
         self.keyboard_listener = None
 
-        # Controladores para reproducciÃ³n
+        # Controladores para reproducción
         self.mouse_controller = mouse.Controller()
         self.keyboard_controller = keyboard.Controller()
 
@@ -400,7 +400,7 @@ class MouseKeyboardRecorder:
         self.setup_ui()
 
     def setup_ui(self):
-        # Crear notebook para pestaÃ±as
+        # Crear notebook para pestañas
         self.notebook = ttk.Notebook(self.root)
         self.notebook.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
 
@@ -638,7 +638,7 @@ class MouseKeyboardRecorder:
                                              variable=self.repeat_var)
         self.repeat_checkbox.pack(anchor=tk.W)
 
-        # Estado de ejecuciÃ³n
+        # Estado de ejecución
         self.execution_status_label = ttk.Label(right_frame, text="Listo para ejecutar",
                                               font=("Arial", 10))
         self.execution_status_label.pack(pady=(10, 0))
@@ -726,11 +726,11 @@ class MouseKeyboardRecorder:
         self.refresh_main_panel()
 
     def setup_prompts_tab(self):
-        """Configura la pestaÃ±a del teclado de prompts"""
+        """Configura la pestaña del teclado de prompts"""
         main_frame = ttk.Frame(self.prompts_frame, padding="20")
         main_frame.pack(fill=tk.BOTH, expand=True)
 
-        # TÃ­tulo
+        # Título
         title_label = ttk.Label(main_frame, text="Teclado de Prompts",
                                font=("Arial", 16, "bold"))
         title_label.pack(pady=(0, 20))
@@ -815,10 +815,10 @@ class MouseKeyboardRecorder:
         self.prompt_tasks_listbox.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         scrollbar_prompt_tasks.pack(side=tk.RIGHT, fill=tk.Y)
 
-        # Bind para selecciÃ³n de tarea
+        # Bind para selección de tarea
         self.prompt_tasks_listbox.bind('<<ListboxSelect>>', self.on_prompt_task_select)
 
-        # Botones de gestiÃ³n de prompts
+        # Botones de gestión de prompts
         prompt_buttons_frame = ttk.Frame(left_frame)
         prompt_buttons_frame.pack(fill=tk.X, pady=(10, 0))
 
@@ -834,7 +834,7 @@ class MouseKeyboardRecorder:
         right_frame = ttk.LabelFrame(content_frame, text="Generador de Prompts", padding="10")
         right_frame.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True)
 
-        # InformaciÃ³n de la tarea seleccionada
+        # Información de la tarea seleccionada
         self.selected_task_label = ttk.Label(right_frame, text="Selecciona una tarea",
                                            font=("Arial", 12, "bold"))
         self.selected_task_label.pack(pady=(0, 10))
@@ -853,11 +853,11 @@ class MouseKeyboardRecorder:
         self.prompt_template_text.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         scrollbar_template.pack(side=tk.RIGHT, fill=tk.Y)
 
-        # Ã rea de contenido dinÃ¡mico
-        dynamic_frame = ttk.LabelFrame(right_frame, text="Contenido DinÃ¡mico", padding="10")
+        # Área de contenido dinámico
+        dynamic_frame = ttk.LabelFrame(right_frame, text="Contenido Dinámico", padding="10")
         dynamic_frame.pack(fill=tk.X, pady=(10, 0))
 
-        ttk.Label(dynamic_frame, text="Pega aquÃ­ el contenido variable (ej: HTML del botÃ³n):").pack(anchor=tk.W)
+        ttk.Label(dynamic_frame, text="Pega aquí el contenido variable (ej: HTML del botón):").pack(anchor=tk.W)
 
         self.dynamic_content_text = tk.Text(dynamic_frame, height=4, wrap=tk.WORD, font=("Consolas", 9))
         scrollbar_dynamic = ttk.Scrollbar(dynamic_frame, orient=tk.VERTICAL,
@@ -866,7 +866,7 @@ class MouseKeyboardRecorder:
         self.dynamic_content_text.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         scrollbar_dynamic.pack(side=tk.RIGHT, fill=tk.Y)
 
-        # Botones de acciÃ³n
+        # Botones de acción
         action_buttons_frame = ttk.Frame(right_frame)
         action_buttons_frame.pack(fill=tk.X, pady=(15, 0))
 
@@ -878,7 +878,7 @@ class MouseKeyboardRecorder:
                                       command=self.copy_final_prompt, width=20)
         self.copy_prompt_btn.pack(side=tk.LEFT, padx=5)
 
-        # Ã rea del prompt final
+        # Área del prompt final
         final_frame = ttk.LabelFrame(right_frame, text="Prompt Final Generado", padding="10")
         final_frame.pack(fill=tk.BOTH, expand=True, pady=(15, 0))
 
@@ -894,11 +894,11 @@ class MouseKeyboardRecorder:
         self.refresh_prompt_tasks()
 
     def setup_server_tab(self):
-        """Configura la pestaÃ±a del servidor HTTP"""
+        """Configura la pestaña del servidor HTTP"""
         main_frame = ttk.Frame(self.server_frame, padding="20")
         main_frame.pack(fill=tk.BOTH, expand=True)
 
-        # TÃ­tulo
+        # Título
         title_label = ttk.Label(main_frame, text="Servidor API HTTP",
                                font=("Arial", 16, "bold"))
         title_label.pack(pady=(0, 20))
@@ -958,7 +958,7 @@ class MouseKeyboardRecorder:
         self.test_api_btn.pack(side=tk.LEFT, padx=5)
 
     def insert_api_documentation(self):
-        """Inserta la documentaciÃ³n de la API en el widget de texto"""
+        """Inserta la documentación de la API en el widget de texto"""
         doc_text = """
 API HTTP
 
@@ -1218,7 +1218,7 @@ curl -X POST http://localhost:8080/api/execute/task -H "Content-Type: applicatio
             self.save_task_btn.config(state="normal")
             self.status_label.config(text="Grabacion completada")
 
-            # Mostrar automÃ¡ticamente el diÃ¡logo para guardar la grabaciÃ³n
+            # Mostrar automáticamente el diálogo para guardar la grabación
             self.show_save_dialog()
         else:
             self.status_label.config(text="No se grabaron eventos")
@@ -1327,14 +1327,14 @@ curl -X POST http://localhost:8080/api/execute/task -H "Content-Type: applicatio
         self.root.after(0, lambda: self.events_label.config(
             text=f"Eventos grabados: {len(self.recorded_events)}"))
 
-    # ==================== MÃ‰TODOS DE GESTIÃ“N DE TAREAS ====================
+    # ==================== MÉTODOS DE GESTIÓN DE TAREAS ====================
 
     def show_save_dialog(self):
         """Muestra el dialogo para guardar la grabacion automaticamente"""
         if not self.recorded_events:
             return
 
-        # Crear ventana de diÃ¡logo
+        # Crear ventana de diálogo
         save_dialog = tk.Toplevel(self.root)
         save_dialog.title("Guardar Grabacion")
         save_dialog.geometry("450x300")
@@ -1352,7 +1352,7 @@ curl -X POST http://localhost:8080/api/execute/task -H "Content-Type: applicatio
         main_frame = ttk.Frame(save_dialog, padding="20")
         main_frame.pack(fill=tk.BOTH, expand=True)
 
-        # TÃ­tulo
+        # Título
         title_label = ttk.Label(main_frame, text="Grabacion completada",
                                font=("Arial", 16, "bold"))
         title_label.pack(pady=(0, 10))
@@ -1588,14 +1588,14 @@ curl -X POST http://localhost:8080/api/execute/task -H "Content-Type: applicatio
         task_name = task_names[selected_indices[0]]
         task = self.tasks[task_name]
 
-        # Crear ventana de ediciÃ³n
+        # Crear ventana de edición
         edit_window = tk.Toplevel(self.root)
         edit_window.title(f"Editar Tarea: {task_name}")
         edit_window.geometry("400x300")
         edit_window.transient(self.root)
         edit_window.grab_set()
 
-        # Campos de ediciÃ³n
+        # Campos de edición
         ttk.Label(edit_window, text="Nombre:", font=("Arial", 10, "bold")).pack(anchor=tk.W, padx=20, pady=(20, 5))
         name_var = tk.StringVar(value=task_name)
         name_entry = ttk.Entry(edit_window, textvariable=name_var, width=50)
@@ -1606,8 +1606,8 @@ curl -X POST http://localhost:8080/api/execute/task -H "Content-Type: applicatio
         desc_entry = ttk.Entry(edit_window, textvariable=desc_var, width=50)
         desc_entry.pack(padx=20, pady=(0, 10))
 
-        # InformaciÃ³n de la tarea
-        info_frame = ttk.LabelFrame(edit_window, text="InformaciÃ³n", padding="10")
+        # Información de la tarea
+        info_frame = ttk.LabelFrame(edit_window, text="Información", padding="10")
         info_frame.pack(fill=tk.X, padx=20, pady=10)
 
         ttk.Label(info_frame, text=f"Eventos: {task['event_count']}").pack(anchor=tk.W)
@@ -1678,7 +1678,7 @@ curl -X POST http://localhost:8080/api/execute/task -H "Content-Type: applicatio
         messagebox.showinfo("Exito", f"Tarea duplicada como '{new_name}'")
 
     def add_to_queue(self):
-        """Agrega tareas seleccionadas a la cola de ejecuciÃ³n"""
+        """Agrega tareas seleccionadas a la cola de ejecución"""
         selected_indices = self.tasks_listbox.curselection()
         if not selected_indices:
             messagebox.showwarning("Advertencia", "Selecciona al menos una tarea para agregar a la cola")
@@ -1693,18 +1693,18 @@ curl -X POST http://localhost:8080/api/execute/task -H "Content-Type: applicatio
                 self.queue_listbox.insert(tk.END, task_name)
 
     def remove_from_queue(self):
-        """Quita tareas seleccionadas de la cola de ejecuciÃ³n"""
+        """Quita tareas seleccionadas de la cola de ejecución"""
         selected_indices = self.queue_listbox.curselection()
         if not selected_indices:
             messagebox.showwarning("Advertencia", "Selecciona al menos una tarea para quitar de la cola")
             return
 
-        # Eliminar en orden inverso para mantener Ã­ndices vÃ¡lidos
+        # Eliminar en orden inverso para mantener índices válidos
         for index in reversed(selected_indices):
             self.queue_listbox.delete(index)
 
     def clear_queue(self):
-        """Limpia toda la cola de ejecuciÃ³n"""
+        """Limpia toda la cola de ejecución"""
         if self.queue_listbox.size() > 0:
             if messagebox.askyesno("Confirmar", "Estas seguro de limpiar toda la cola?"):
                 self.queue_listbox.delete(0, tk.END)
@@ -2098,9 +2098,9 @@ curl -X POST http://localhost:8080/api/execute/task -H "Content-Type: applicatio
             self.root.after(0, lambda: messagebox.showerror("Error", f"Error ejecutando cola personalizada: {str(e)}"))
             self.root.after(0, lambda: self.execution_status_label.config(text="Error en ejecucion"))
 
-    # ==================== MÃ‰TODOS DEL TECLADO DE PROMPTS ====================
+    # ==================== MÉTODOS DEL TECLADO DE PROMPTS ====================
 
-    # ==================== MÃ‰TODOS DE DISPARADORES DE TEXTO ====================
+    # ==================== MÉTODOS DE DISPARADORES DE TEXTO ====================
 
     def load_text_triggers(self):
         """Carga los disparadores desde el archivo JSON"""
@@ -2121,11 +2121,11 @@ curl -X POST http://localhost:8080/api/execute/task -H "Content-Type: applicatio
             print(f"Error guardando disparadores: {e}")
 
     def setup_triggers_tab(self):
-        """Configura la pestaÃ±a de disparadores dinÃ¡micos"""
+        """Configura la pestaña de disparadores dinámicos"""
         main_frame = ttk.Frame(self.triggers_frame, padding="20")
         main_frame.pack(fill=tk.BOTH, expand=True)
 
-        ttk.Label(main_frame, text="Disparadores de Texto DinÃ¡micos", font=("Arial", 16, "bold")).pack(pady=(0, 20))
+        ttk.Label(main_frame, text="Disparadores de Texto Dinámicos", font=("Arial", 16, "bold")).pack(pady=(0, 20))
         
         # Formulario para agregar
         form_frame = ttk.LabelFrame(main_frame, text="Nuevo Disparador", padding="10")
@@ -2351,7 +2351,7 @@ curl -X POST http://localhost:8080/api/execute/task -H "Content-Type: applicatio
 
 
     def refresh_prompt_tasks(self):
-        """Actualiza la lista de tareas en la pestaÃ±a de prompts"""
+        """Actualiza la lista de tareas en la pestaña de prompts"""
         self.prompt_tasks_listbox.delete(0, tk.END)
         for task_name, task_data in self.tasks.items():
             has_prompt = bool(task_data.get('prompt_template', '').strip())
@@ -2360,7 +2360,7 @@ curl -X POST http://localhost:8080/api/execute/task -H "Content-Type: applicatio
             self.prompt_tasks_listbox.insert(tk.END, display_text)
 
     def on_prompt_task_select(self, event):
-        """Maneja la selecciÃ³n de una tarea en la lista de prompts"""
+        """Maneja la selección de una tarea en la lista de prompts"""
         selection = self.prompt_tasks_listbox.curselection()
         if not selection:
             return
@@ -2372,7 +2372,7 @@ curl -X POST http://localhost:8080/api/execute/task -H "Content-Type: applicatio
         task_name = task_names[selection[0]]
         task = self.tasks[task_name]
 
-        # Actualizar informaciÃ³n de la tarea seleccionada
+        # Actualizar información de la tarea seleccionada
         self.selected_task_label.config(text=f"Tarea: {task_name}")
 
         # Mostrar template del prompt
@@ -2385,7 +2385,7 @@ curl -X POST http://localhost:8080/api/execute/task -H "Content-Type: applicatio
             self.prompt_template_text.insert(1.0, "Esta tarea no tiene un prompt configurado.\nHaz clic en 'Editar Prompt' para crear uno.")
         self.prompt_template_text.config(state=tk.DISABLED)
 
-        # Limpiar Ã¡reas de trabajo
+        # Limpiar áreas de trabajo
         self.dynamic_content_text.delete(1.0, tk.END)
         self.final_prompt_text.config(state=tk.NORMAL)
         self.final_prompt_text.delete(1.0, tk.END)
@@ -2402,7 +2402,7 @@ curl -X POST http://localhost:8080/api/execute/task -H "Content-Type: applicatio
         task_name = task_names[selection[0]]
         task = self.tasks[task_name]
 
-        # Crear ventana de ediciÃ³n de prompt
+        # Crear ventana de edición de prompt
         prompt_window = tk.Toplevel(self.root)
         prompt_window.title(f"Editor de Prompt: {task_name}")
         prompt_window.geometry("800x600")
@@ -2413,7 +2413,7 @@ curl -X POST http://localhost:8080/api/execute/task -H "Content-Type: applicatio
         main_frame = ttk.Frame(prompt_window, padding="20")
         main_frame.pack(fill=tk.BOTH, expand=True)
 
-        # TÃ­tulo
+        # Título
         title_label = ttk.Label(main_frame, text=f"Editando Prompt para: {task_name}",
                                font=("Arial", 14, "bold"))
         title_label.pack(pady=(0, 20))
@@ -2539,7 +2539,7 @@ Como esta actualmente el boton real:
             messagebox.showwarning("Advertencia", "Esta tarea no tiene un prompt configurado")
             return
 
-        # Obtener contenido dinÃ¡mico
+        # Obtener contenido dinámico
         dynamic_content = self.dynamic_content_text.get(1.0, tk.END).strip()
 
         # Generar prompt final
@@ -2575,7 +2575,7 @@ Como esta actualmente el boton real:
         self.root.clipboard_append(final_prompt)
         messagebox.showinfo("Exito", "Prompt copiado al portapapeles")
 
-    # ==================== MÃ‰TODOS DEL SERVIDOR HTTP ====================
+    # ==================== MÉTODOS DEL SERVIDOR HTTP ====================
 
     def start_http_server(self):
         """Inicia el servidor HTTP"""
@@ -2621,7 +2621,7 @@ curl http://localhost:{port}/api/status
 # Listar todas las tareas
 curl http://localhost:{port}/api/tasks
 
-# Ejecutar una tarea especÃ­fica
+# Ejecutar una tarea específica
 curl -X POST http://localhost:{port}/api/execute/task \\
      -H "Content-Type: application/json" \\
      -d '{{"task_name": "nombre_de_tu_tarea"}}'
@@ -2941,7 +2941,7 @@ print(response.json())"""
         self.record_btn.config(state="disabled")
         self.status_label.config(text="Reproduciendo...")
 
-        # Ejecutar reproducciÃ³n en hilo separado
+        # Ejecutar reproducción en hilo separado
         threading.Thread(target=self._play_events, daemon=True).start()
 
     def _play_events(self):
@@ -2968,7 +2968,7 @@ print(response.json())"""
             self.root.after(0, self._finish_playback)
 
     def _execute_event(self, event):
-        """Ejecuta un evento especÃ­fico"""
+        """Ejecuta un evento específico"""
         try:
             if event['type'] == 'mouse_move':
                 self.mouse_controller.position = (event['x'], event['y'])
@@ -3065,7 +3065,7 @@ print(response.json())"""
                 messagebox.showerror("Error", f"Error al cargar: {str(e)}")
 
     def run(self):
-        """Ejecuta la aplicaciÃ³n"""
+        """Ejecuta la aplicación"""
         self.root.mainloop()
 
 if __name__ == "__main__":
