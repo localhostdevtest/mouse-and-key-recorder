@@ -1,4 +1,4 @@
-﻿import tkinter as tk
+import tkinter as tk
 from tkinter import ttk, messagebox, filedialog, simpledialog
 import json
 import time
@@ -365,6 +365,10 @@ class MouseKeyboardRecorder:
         self.quick_prompts_file = "quick_prompts.json"
         self.recordings_dir = "recordings"
 
+        # Configuracion de matriz
+        self.matrix_entries = {}
+        self.matrix_config_file = "matrix_config.json"
+
         # Sistema de tareas
         self.tasks = {}  # Diccionario de tareas guardadas
         self.current_task_name = ""
@@ -389,20 +393,20 @@ class MouseKeyboardRecorder:
         self.notebook = ttk.Notebook(self.root)
         self.notebook.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
 
-        # Pestaña 1: Grabacion
+        # Pestaña 1: Botonera Principal
+        self.main_panel_frame = ttk.Frame(self.notebook)
+        self.notebook.add(self.main_panel_frame, text="Botonera")
+        self.setup_main_panel_tab()
+
+        # Pestaña 2: Grabacion
         self.recording_frame = ttk.Frame(self.notebook)
         self.notebook.add(self.recording_frame, text="Grabacion")
         self.setup_recording_tab()
 
-        # Pestaña 2: Tareas
+        # Pestaña 3: Tareas
         self.tasks_frame = ttk.Frame(self.notebook)
         self.notebook.add(self.tasks_frame, text="Tareas")
         self.setup_tasks_tab()
-
-        # Pestaña 3: Botonera Principal
-        self.main_panel_frame = ttk.Frame(self.notebook)
-        self.notebook.add(self.main_panel_frame, text="Botonera")
-        self.setup_main_panel_tab()
 
         # Pestaña 4: Prompts
         self.prompts_frame = ttk.Frame(self.notebook)
@@ -419,9 +423,15 @@ class MouseKeyboardRecorder:
         self.notebook.add(self.screenshot_frame, text="Screenshots")
         self.setup_screenshot_tab()
 
+        # Pestaña 7: Matriz 3x3
+        self.matrix_frame = ttk.Frame(self.notebook)
+        self.notebook.add(self.matrix_frame, text="Matriz (3x3)")
+        self.setup_matrix_tab()
+
         # Cargar tareas guardadas al inicio
         self.load_tasks_from_file()
         self.load_screenshot_regions_from_file()
+        self.load_matrix_config()
         self.refresh_prompt_tasks()
         self.refresh_screenshot_regions_list()
         self.refresh_main_panel()
@@ -646,6 +656,21 @@ class MouseKeyboardRecorder:
         self.main_panel_canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         main_panel_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
 
+        # Matriz Rapida en Botonera
+        self.matrix_quick_section = ttk.LabelFrame(self.main_panel_inner, text="Ejecutar Matriz Rápida", padding="10")
+        self.matrix_quick_section.pack(fill=tk.X, pady=(0, 12))
+        
+        matrix_input_frame = ttk.Frame(self.matrix_quick_section)
+        matrix_input_frame.pack(fill=tk.X)
+        
+        ttk.Label(matrix_input_frame, text="Secuencia (ej: 1x2 3x3):").pack(side=tk.LEFT, padx=(0, 5))
+        self.matrix_quick_var = tk.StringVar()
+        ttk.Entry(matrix_input_frame, textvariable=self.matrix_quick_var, font=("Arial", 11)).pack(side=tk.LEFT, fill=tk.X, expand=True, padx=5)
+        
+        ttk.Button(matrix_input_frame, text="▶ Ejecutar", command=lambda: self.execute_matrix_sequence(self.matrix_quick_var.get())).pack(side=tk.LEFT, padx=5)
+        self.matrix_quick_status = ttk.Label(self.matrix_quick_section, text="", foreground="blue", font=("Arial", 9))
+        self.matrix_quick_status.pack(pady=(5, 0))
+
         self.main_recordings_section = ttk.LabelFrame(self.main_panel_inner, text="Grabaciones", padding="10")
         self.main_recordings_section.pack(fill=tk.X, pady=(0, 12))
 
@@ -784,7 +809,7 @@ class MouseKeyboardRecorder:
         self.prompt_template_text.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         scrollbar_template.pack(side=tk.RIGHT, fill=tk.Y)
 
-        # Ãrea de contenido dinÃ¡mico
+        # Ã rea de contenido dinÃ¡mico
         dynamic_frame = ttk.LabelFrame(right_frame, text="Contenido DinÃ¡mico", padding="10")
         dynamic_frame.pack(fill=tk.X, pady=(10, 0))
 
@@ -809,7 +834,7 @@ class MouseKeyboardRecorder:
                                       command=self.copy_final_prompt, width=20)
         self.copy_prompt_btn.pack(side=tk.LEFT, padx=5)
 
-        # Ãrea del prompt final
+        # Ã rea del prompt final
         final_frame = ttk.LabelFrame(right_frame, text="Prompt Final Generado", padding="10")
         final_frame.pack(fill=tk.BOTH, expand=True, pady=(15, 0))
 
@@ -975,6 +1000,157 @@ curl -X POST http://localhost:8080/api/execute/task -H "Content-Type: applicatio
         self.screenshot_label.pack(pady=(15, 0))
 
         self.refresh_screenshot_regions_list()
+
+    def setup_matrix_tab(self):
+        """Configura la pestaña de la matriz 3x3"""
+        main_frame = ttk.Frame(self.matrix_frame, padding="20")
+        main_frame.pack(fill=tk.BOTH, expand=True)
+
+        title_label = ttk.Label(main_frame, text="Matriz de Coordenadas (3x3)", font=("Arial", 16, "bold"))
+        title_label.pack(pady=(0, 10))
+
+        inst_label = ttk.Label(main_frame, text="1. Usa 'Capturar (3s)' para guardar las coordenadas de cada elemento.\n2. Pega una secuencia como '1x2 1x3 3x3' y haz click en Ejecutar.", justify=tk.CENTER)
+        inst_label.pack(pady=5)
+
+        # Click Inicial Frame
+        init_frame = ttk.LabelFrame(main_frame, text="Configuración Adicional", padding="10")
+        init_frame.pack(fill=tk.X, padx=20, pady=(0, 5))
+        
+        self.matrix_init_click_var = tk.StringVar()
+        ttk.Label(init_frame, text="Click Inicial (antes de secuencia):").pack(side=tk.LEFT, padx=(0, 5))
+        ttk.Entry(init_frame, textvariable=self.matrix_init_click_var, width=15, justify="center").pack(side=tk.LEFT, padx=5)
+        ttk.Button(init_frame, text="Capturar (3s)", command=lambda: self.capture_matrix_coords("Click Inicial", self.matrix_init_click_var)).pack(side=tk.LEFT, padx=5)
+        self.matrix_entries["init_click"] = self.matrix_init_click_var
+
+        # Matriz Frame
+        matrix_frame = ttk.LabelFrame(main_frame, text="Elementos de la Matriz", padding="10")
+        matrix_frame.pack(fill=tk.BOTH, expand=True, padx=20, pady=5)
+
+        matrix_frame.columnconfigure(0, weight=1)
+        matrix_frame.columnconfigure(1, weight=1)
+        matrix_frame.columnconfigure(2, weight=1)
+
+        for r in range(1, 4):
+            for c in range(1, 4):
+                key = f"{r}x{c}"
+                cell_frame = ttk.Frame(matrix_frame, borderwidth=1, relief="groove", padding=5)
+                cell_frame.grid(row=r-1, column=c-1, padx=5, pady=5, sticky="nsew")
+
+                ttk.Label(cell_frame, text=f"Item: {key}", font=("Arial", 10, "bold")).pack()
+                entry_var = tk.StringVar()
+                entry = ttk.Entry(cell_frame, textvariable=entry_var, width=12, justify="center")
+                entry.pack(pady=5)
+
+                btn = ttk.Button(cell_frame, text="Capturar (3s)", command=lambda k=key, var=entry_var: self.capture_matrix_coords(k, var))
+                btn.pack()
+                self.matrix_entries[key] = entry_var
+
+        # Ejecución Frame
+        exec_frame = ttk.LabelFrame(main_frame, text="Ejecutar Secuencia", padding="10")
+        exec_frame.pack(fill=tk.X, padx=20, pady=10)
+
+        ttk.Label(exec_frame, text="Secuencia (ej: 1x2 2x3 3x3):").pack(anchor=tk.W)
+        self.matrix_sequence_var = tk.StringVar()
+        self.matrix_sequence_entry = ttk.Entry(exec_frame, textvariable=self.matrix_sequence_var, font=("Arial", 11))
+        self.matrix_sequence_entry.pack(fill=tk.X, pady=5)
+
+        btn_frame = ttk.Frame(exec_frame)
+        btn_frame.pack(fill=tk.X, pady=5)
+
+        ttk.Button(btn_frame, text="💾 Guardar Coordenadas", command=self.save_matrix_config).pack(side=tk.LEFT, padx=5)
+        self.matrix_ejecutar_btn = ttk.Button(btn_frame, text="▶ Ejecutar Secuencia", command=self.execute_matrix_sequence)
+        self.matrix_ejecutar_btn.pack(side=tk.RIGHT, padx=5)
+
+        self.matrix_status_var = tk.StringVar(value="ESTADO: Listo")
+        ttk.Label(main_frame, textvariable=self.matrix_status_var, font=("Arial", 10, "bold"), foreground="blue").pack(pady=5)
+
+    def capture_matrix_coords(self, key, var):
+        def task():
+            for i in range(3, 0, -1):
+                self.matrix_status_var.set(f"ESTADO: Capturando {key} en {i} segs... (Mueve el mouse)")
+                self.root.update()
+                time.sleep(1)
+            
+            x, y = self.mouse_controller.position
+            var.set(f"{int(x)}, {int(y)}")
+            self.matrix_status_var.set(f"ESTADO: Guardado {key} -> ({int(x)}, {int(y)})")
+            self.root.update()
+            
+        threading.Thread(target=task, daemon=True).start()
+
+    def save_matrix_config(self):
+        data = {k: v.get() for k, v in self.matrix_entries.items()}
+        try:
+            with open(self.matrix_config_file, "w") as f:
+                json.dump(data, f)
+            self.matrix_status_var.set(f"ESTADO: Config guardada en {self.matrix_config_file} exitosamente!")
+        except Exception as e:
+            self.matrix_status_var.set(f"ESTADO: Error al guardar - {str(e)}")
+
+    def load_matrix_config(self):
+        if os.path.exists(self.matrix_config_file):
+            try:
+                with open(self.matrix_config_file, "r") as f:
+                    data = json.load(f)
+                    for k, v in data.items():
+                        if k in self.matrix_entries:
+                            self.matrix_entries[k].set(v)
+            except Exception as e:
+                print(f"Error cargando config matriz: {e}")
+
+    def execute_matrix_sequence(self, sequence=None):
+        seq = sequence if sequence is not None else self.matrix_sequence_var.get()
+        seq = seq.strip()
+        
+        if not seq:
+            self.matrix_status_var.set("ESTADO: Ingresa una secuencia.")
+            if hasattr(self, 'matrix_quick_status'): self.matrix_quick_status.config(text="ESTADO: Ingresa una secuencia.")
+            return
+            
+        items = seq.split()
+        if hasattr(self, 'matrix_ejecutar_btn'): self.matrix_ejecutar_btn.state(['disabled'])
+        
+        def task():
+            if "init_click" in self.matrix_entries:
+                init_val = self.matrix_entries["init_click"].get()
+                if init_val and "," in init_val:
+                    try:
+                        ix, iy = map(int, init_val.replace(" ", "").split(","))
+                        status_text = "ESTADO: Ejecutando Click Inicial..."
+                        self.matrix_status_var.set(status_text)
+                        if hasattr(self, 'matrix_quick_status'): self.matrix_quick_status.config(text=status_text)
+                        self.root.update()
+                        self.mouse_controller.position = (ix, iy)
+                        time.sleep(0.2)
+                        self.mouse_controller.click(Button.left)
+                        time.sleep(0.5)
+                    except ValueError:
+                        pass
+        
+            for item in items:
+                if item in self.matrix_entries:
+                    val = self.matrix_entries[item].get()
+                    if val and "," in val:
+                        try:
+                            x, y = map(int, val.replace(" ", "").split(","))
+                            status_text = f"ESTADO: Clickeando en {item}..."
+                            self.matrix_status_var.set(status_text)
+                            if hasattr(self, 'matrix_quick_status'): self.matrix_quick_status.config(text=status_text)
+                            self.root.update()
+                            self.mouse_controller.position = (x, y)
+                            time.sleep(0.2)
+                            self.mouse_controller.click(Button.left)
+                            time.sleep(0.5)
+                        except ValueError:
+                            pass
+            
+            final_status = "ESTADO: Completado."
+            self.matrix_status_var.set(final_status)
+            if hasattr(self, 'matrix_quick_status'): self.matrix_quick_status.config(text=final_status)
+            if hasattr(self, 'matrix_ejecutar_btn'): self.root.after(0, lambda: self.matrix_ejecutar_btn.state(['!disabled']))
+            
+        threading.Thread(target=task, daemon=True).start()
+
     def start_recording(self):
         """Inicia la grabacion de eventos"""
         self.is_recording = True
@@ -1808,7 +1984,7 @@ curl -X POST http://localhost:8080/api/execute/task -H "Content-Type: applicatio
 
         recordings_header = ttk.Frame(self.main_recordings_section)
         recordings_header.pack(fill=tk.X, pady=(0, 6))
-        ttk.Label(recordings_header, text="Grabaciones guardadas").pack(side=tk.LEFT)
+        ttk.Label(recordings_header, text="Tareas y Grabaciones").pack(side=tk.LEFT)
         ttk.Button(recordings_header, text="Refrescar", command=self.refresh_main_panel, width=12).pack(side=tk.RIGHT)
 
         recordings_table = ttk.Frame(self.main_recordings_section)
@@ -1830,19 +2006,32 @@ curl -X POST http://localhost:8080/api/execute/task -H "Content-Type: applicatio
             ).grid(row=0, column=1, sticky=tk.E, padx=4)
 
         recording_files = self.get_recording_files()
-        if not recording_files:
-            ttk.Label(recordings_table, text="No hay grabaciones guardadas todavia.").grid(row=2, column=0, columnspan=2, sticky=tk.W, padx=4, pady=(6, 0))
+        
+        combined_list = []
+        for name, task_info in self.tasks.items():
+            combined_list.append({"name": f"[Tarea] {name}", "is_task": True, "target": name})
+        for f in recording_files:
+            combined_list.append({"name": f"[Archivo] {f['name']}", "is_task": False, "target": f['path']})
+
+        if not combined_list:
+            ttk.Label(recordings_table, text="No hay tareas ni grabaciones guardadas.").grid(row=2, column=0, columnspan=2, sticky=tk.W, padx=4, pady=(6, 0))
         else:
             start_row = 2 if self.recorded_events else 1
-            for idx, file_info in enumerate(recording_files, start=start_row):
+            for idx, item in enumerate(combined_list, start=start_row):
                 row = ttk.Frame(recordings_table, relief=tk.RIDGE, padding=6)
                 row.grid(row=idx, column=0, columnspan=2, sticky=tk.EW, pady=3)
 
-                ttk.Label(row, text=file_info['name']).grid(row=0, column=0, sticky=tk.W, padx=4)
+                ttk.Label(row, text=item['name']).grid(row=0, column=0, sticky=tk.W, padx=4)
+                
+                if item['is_task']:
+                    cmd = lambda t=item['target']: threading.Thread(target=self._execute_single_task, args=(t,), daemon=True).start()
+                else:
+                    cmd = lambda p=item['target']: self.play_recording_file(p)
+
                 ttk.Button(
                     row,
                     text="Reproducir",
-                    command=lambda path=file_info['path']: self.play_recording_file(path),
+                    command=cmd,
                     width=12
                 ).grid(row=0, column=1, sticky=tk.E, padx=4)
                 row.columnconfigure(0, weight=1)
