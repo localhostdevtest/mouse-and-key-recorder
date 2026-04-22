@@ -372,6 +372,14 @@ class MouseKeyboardRecorder:
         self.matrix_entries = {}
         self.matrix_config_file = "matrix_config.json"
 
+        # Disparadores de texto (Keyword -> Task)
+        self.text_triggers = {}
+        self.text_triggers_file = "text_triggers.json"
+        self.botonera_trigger_var = tk.StringVar()
+        self.botonera_trigger_var.trace_add("write", self.on_botonera_trigger_change)
+        
+        self.load_text_triggers()
+
         # Sistema de tareas
         self.tasks = {}  # Diccionario de tareas guardadas
         self.current_task_name = ""
@@ -430,6 +438,11 @@ class MouseKeyboardRecorder:
         self.matrix_frame = ttk.Frame(self.notebook)
         self.notebook.add(self.matrix_frame, text="Matriz (3x3)")
         self.setup_matrix_tab()
+
+        # Pestaña 8: Disparadores Dinamicos
+        self.triggers_frame = ttk.Frame(self.notebook)
+        self.notebook.add(self.triggers_frame, text="Disparadores")
+        self.setup_triggers_tab()
 
         # Cargar tareas guardadas al inicio
         self.load_tasks_from_file()
@@ -684,6 +697,14 @@ class MouseKeyboardRecorder:
         ttk.Button(matrix_input_frame, text="▶ Ejecutar Secuencia", command=lambda: self.execute_matrix_sequence(self.matrix_quick_var.get())).pack(fill=tk.X)
         self.matrix_quick_status = ttk.Label(self.matrix_quick_section, text="", foreground="blue", font=("Arial", 9))
         self.matrix_quick_status.pack(pady=(5, 0))
+
+        # Disparadores de Texto en Columna 2
+        self.trigger_quick_section = ttk.LabelFrame(self.col2_frame, text="Disparadores Dinámicos", padding="10")
+        self.trigger_quick_section.pack(fill=tk.X, pady=(0, 12), padx=5)
+        
+        ttk.Label(self.trigger_quick_section, text="Pegar palabra clave aquí:").pack(anchor=tk.W)
+        ttk.Entry(self.trigger_quick_section, textvariable=self.botonera_trigger_var, font=("Arial", 11)).pack(fill=tk.X, pady=5)
+        ttk.Label(self.trigger_quick_section, text="Se ejecutará la tarea asociada automáticamente.", font=("Arial", 8), foreground="gray").pack(anchor=tk.W)
 
         # Prompts en Columna 2
         self.main_prompts_section = ttk.LabelFrame(self.col2_frame, text="Prompts rápidos", padding="10")
@@ -2075,6 +2096,120 @@ curl -X POST http://localhost:8080/api/execute/task -H "Content-Type: applicatio
             self.root.after(0, lambda: self.execution_status_label.config(text="Error en ejecucion"))
 
     # ==================== MÃ‰TODOS DEL TECLADO DE PROMPTS ====================
+
+    # ==================== MÃ‰TODOS DE DISPARADORES DE TEXTO ====================
+
+    def load_text_triggers(self):
+        """Carga los disparadores desde el archivo JSON"""
+        if os.path.exists(self.text_triggers_file):
+            try:
+                with open(self.text_triggers_file, 'r', encoding='utf-8') as f:
+                    self.text_triggers = json.load(f)
+            except Exception as e:
+                print(f"Error cargando disparadores: {e}")
+                self.text_triggers = {}
+
+    def save_text_triggers(self):
+        """Guarda los disparadores en el archivo JSON"""
+        try:
+            with open(self.text_triggers_file, 'w', encoding='utf-8') as f:
+                json.dump(self.text_triggers, f, indent=4)
+        except Exception as e:
+            print(f"Error guardando disparadores: {e}")
+
+    def setup_triggers_tab(self):
+        """Configura la pestaÃ±a de disparadores dinÃ¡micos"""
+        main_frame = ttk.Frame(self.triggers_frame, padding="20")
+        main_frame.pack(fill=tk.BOTH, expand=True)
+
+        ttk.Label(main_frame, text="Disparadores de Texto DinÃ¡micos", font=("Arial", 16, "bold")).pack(pady=(0, 20))
+        
+        # Formulario para agregar
+        form_frame = ttk.LabelFrame(main_frame, text="Nuevo Disparador", padding="10")
+        form_frame.pack(fill=tk.X, pady=(0, 20))
+
+        ttk.Label(form_frame, text="Palabra Clave (al pegarla se dispara):").grid(row=0, column=0, sticky=tk.W, padx=5)
+        self.trigger_keyword_var = tk.StringVar()
+        ttk.Entry(form_frame, textvariable=self.trigger_keyword_var, width=30).grid(row=1, column=0, padx=5, pady=5)
+
+        ttk.Label(form_frame, text="Tarea a ejecutar:").grid(row=0, column=1, sticky=tk.W, padx=5)
+        self.trigger_task_var = tk.StringVar()
+        self.trigger_task_combo = ttk.Combobox(form_frame, textvariable=self.trigger_task_var, width=30, state="readonly")
+        self.trigger_task_combo.grid(row=1, column=1, padx=5, pady=5)
+
+        ttk.Button(form_frame, text="Guardar Disparador", command=self.add_text_trigger).grid(row=1, column=2, padx=5, pady=5)
+
+        # Tabla de disparadores
+        list_frame = ttk.LabelFrame(main_frame, text="Disparadores Configurados", padding="10")
+        list_frame.pack(fill=tk.BOTH, expand=True)
+
+        self.triggers_list_container = ttk.Frame(list_frame)
+        self.triggers_list_container.pack(fill=tk.BOTH, expand=True)
+        
+        self.refresh_triggers_list()
+
+    def add_text_trigger(self):
+        """Agrega un nuevo disparador"""
+        keyword = self.trigger_keyword_var.get().strip()
+        task_name = self.trigger_task_var.get()
+
+        if not keyword or not task_name:
+            messagebox.showwarning("Advertencia", "Completa ambos campos")
+            return
+
+        self.text_triggers[keyword] = task_name
+        self.save_text_triggers()
+        self.refresh_triggers_list()
+        self.trigger_keyword_var.set("")
+        self.status_label.config(text=f"Disparador '{keyword}' guardado")
+
+    def delete_text_trigger(self, keyword):
+        """Elimina un disparador"""
+        if keyword in self.text_triggers:
+            del self.text_triggers[keyword]
+            self.save_text_triggers()
+            self.refresh_triggers_list()
+            self.status_label.config(text=f"Disparador '{keyword}' eliminado")
+
+    def refresh_triggers_list(self):
+        """Actualiza la lista de disparadores en la UI"""
+        for widget in self.triggers_list_container.winfo_children():
+            widget.destroy()
+
+        # Actualizar combo de tareas
+        task_names = list(self.tasks.keys())
+        if hasattr(self, 'trigger_task_combo'):
+            self.trigger_task_combo['values'] = task_names
+
+        if not self.text_triggers:
+            ttk.Label(self.triggers_list_container, text="No hay disparadores configurados.").pack(pady=10)
+            return
+
+        header = ttk.Frame(self.triggers_list_container)
+        header.pack(fill=tk.X)
+        ttk.Label(header, text="Palabra Clave", font=("Arial", 10, "bold"), width=30).pack(side=tk.LEFT, padx=5)
+        ttk.Label(header, text="Tarea", font=("Arial", 10, "bold"), width=30).pack(side=tk.LEFT, padx=5)
+
+        for keyword, task_name in self.text_triggers.items():
+            row = ttk.Frame(self.triggers_list_container, relief=tk.RIDGE, padding=5)
+            row.pack(fill=tk.X, pady=2)
+            
+            ttk.Label(row, text=keyword, width=30).pack(side=tk.LEFT, padx=5)
+            ttk.Label(row, text=task_name, width=30).pack(side=tk.LEFT, padx=5)
+            
+            ttk.Button(row, text="Eliminar", command=lambda k=keyword: self.delete_text_trigger(k), width=10).pack(side=tk.RIGHT, padx=5)
+
+    def on_botonera_trigger_change(self, *args):
+        """Monitorea el input de la botonera para disparar tareas"""
+        value = self.botonera_trigger_var.get().strip()
+        if value in self.text_triggers:
+            task_name = self.text_triggers[value]
+            # Limpiar el input inmediatamente para evitar bucles o ejecuciones dobles
+            self.botonera_trigger_var.set("")
+            self.status_label.config(text=f"¡Disparador detectado! Ejecutando: {task_name}")
+            
+            # Ejecutar la tarea en un hilo
+            threading.Thread(target=self._execute_single_task, args=(task_name,), daemon=True).start()
 
     def refresh_main_panel(self):
         """Renderiza la botonera principal con accesos rapidos"""
