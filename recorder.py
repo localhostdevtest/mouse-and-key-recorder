@@ -366,6 +366,7 @@ class MouseKeyboardRecorder:
         self.quick_prompts = []
         self.quick_prompts_file = "quick_prompts.json"
         self.recordings_dir = "recordings"
+        self.editing_prompt_id = None
 
         # Configuracion de matriz
         self.matrix_entries = {}
@@ -738,7 +739,8 @@ class MouseKeyboardRecorder:
         quick_buttons = ttk.Frame(quick_frame)
         quick_buttons.pack(fill=tk.X, pady=(10, 0))
 
-        ttk.Button(quick_buttons, text="Guardar prompt", command=self.save_quick_prompt_from_form).pack(side=tk.LEFT, padx=(0, 5))
+        self.save_prompt_btn = ttk.Button(quick_buttons, text="Guardar prompt", command=self.save_quick_prompt_from_form)
+        self.save_prompt_btn.pack(side=tk.LEFT, padx=(0, 5))
         ttk.Button(quick_buttons, text="Copiar prompt", command=self.copy_quick_prompt_from_form).pack(side=tk.LEFT, padx=5)
         ttk.Button(quick_buttons, text="Limpiar", command=self.clear_quick_prompt_form).pack(side=tk.LEFT, padx=5)
 
@@ -1841,14 +1843,21 @@ curl -X POST http://localhost:8080/api/execute/task -H "Content-Type: applicatio
                 btn_frame,
                 text="Copiar",
                 command=lambda pid=prompt_id, extra_widget=extra_entry: self.copy_saved_quick_prompt(pid, extra_widget),
-                width=10
+                width=8
+            ).pack(side=tk.LEFT, padx=2)
+            
+            ttk.Button(
+                btn_frame,
+                text="Editar",
+                command=lambda pid=prompt_id: self.load_prompt_for_edit(pid),
+                width=8
             ).pack(side=tk.LEFT, padx=2)
             
             ttk.Button(
                 btn_frame,
                 text="Borrar",
                 command=lambda pid=prompt_id: self.confirm_delete_prompt(pid),
-                width=10
+                width=8
             ).pack(side=tk.LEFT, padx=2)
 
             row.columnconfigure(1, weight=1)
@@ -1859,7 +1868,7 @@ curl -X POST http://localhost:8080/api/execute/task -H "Content-Type: applicatio
             self.delete_saved_quick_prompt(prompt_id)
 
     def save_quick_prompt_from_form(self):
-        """Guarda un prompt rapido nuevo"""
+        """Guarda o actualiza un prompt rapido"""
         values = self.get_quick_prompt_form_values()
 
         if not values['title']:
@@ -1870,17 +1879,54 @@ curl -X POST http://localhost:8080/api/execute/task -H "Content-Type: applicatio
             self.status_label.config(text="Escribe el prompt antes de guardarlo")
             return
 
-        self.quick_prompts.insert(0, {
-            'id': f"{int(time.time() * 1000)}-{os.urandom(3).hex()}",
-            'title': values['title'],
-            'prompt': values['prompt'],
-            'extra': values['extra']
-        })
+        if self.editing_prompt_id:
+            # Actualizar prompt existente
+            for prompt_item in self.quick_prompts:
+                if prompt_item.get('id') == self.editing_prompt_id:
+                    prompt_item['title'] = values['title']
+                    prompt_item['prompt'] = values['prompt']
+                    prompt_item['extra'] = values['extra']
+                    break
+            self.status_label.config(text="Prompt actualizado correctamente")
+        else:
+            # Crear prompt nuevo
+            self.quick_prompts.insert(0, {
+                'id': f"{int(time.time() * 1000)}-{os.urandom(3).hex()}",
+                'title': values['title'],
+                'prompt': values['prompt'],
+                'extra': values['extra']
+            })
+            self.status_label.config(text="Prompt guardado correctamente")
+
         self.save_quick_prompts_to_file()
         self.render_quick_prompts()
         self.refresh_main_panel()
         self.clear_quick_prompt_form()
-        self.status_label.config(text="Prompt guardado correctamente")
+
+    def load_prompt_for_edit(self, prompt_id):
+        """Carga un prompt en el formulario para editarlo"""
+        prompt_item = next((item for item in self.quick_prompts if item.get('id') == prompt_id), None)
+        if not prompt_item:
+            self.status_label.config(text="No se encontro el prompt para editar")
+            return
+
+        # Limpiar y cargar valores
+        self.clear_quick_prompt_form()
+        self.quick_prompt_title_entry.insert(0, prompt_item.get('title', ''))
+        self.quick_prompt_text.insert(1.0, prompt_item.get('prompt', ''))
+        self.quick_prompt_extra_entry.insert(0, prompt_item.get('extra', ''))
+        
+        self.editing_prompt_id = prompt_id
+        if hasattr(self, 'save_prompt_btn'):
+            self.save_prompt_btn.config(text="Actualizar Prompt")
+            
+        # Cambiar a la pestaña de Prompts si estamos en otra
+        try:
+            self.notebook.select(self.prompts_frame)
+        except:
+            pass
+            
+        self.status_label.config(text=f"Editando prompt: {prompt_item.get('title')}")
 
     def copy_quick_prompt_from_form(self):
         """Copia el prompt del formulario rapido"""
@@ -1933,14 +1979,44 @@ curl -X POST http://localhost:8080/api/execute/task -H "Content-Type: applicatio
         self.quick_prompt_title_entry.delete(0, tk.END)
         self.quick_prompt_text.delete(1.0, tk.END)
         self.quick_prompt_extra_entry.delete(0, tk.END)
+        self.editing_prompt_id = None
+        if hasattr(self, 'save_prompt_btn'):
+            self.save_prompt_btn.config(text="Guardar prompt")
 
     def _execute_events(self, events):
-        """Ejecuta una lista de eventos"""
+        """Ejecuta una lista de eventos, ignorando el último click"""
         if not events:
             return
 
+        # Filtrar el último click (generalmente el de presionar "Detener")
+        # Buscamos el último par de eventos mouse_click (pressed=True y pressed=False)
+        events_to_execute = list(events)
+        last_up_idx = -1
+        
+        # Encontrar el último release (pressed=False)
+        for i in range(len(events_to_execute) - 1, -1, -1):
+            if events_to_execute[i].get('type') == 'mouse_click' and not events_to_execute[i].get('pressed'):
+                last_up_idx = i
+                break
+        
+        if last_up_idx != -1:
+            last_down_idx = -1
+            # Encontrar el press correspondiente (pressed=True) antes del release
+            for i in range(last_up_idx - 1, -1, -1):
+                if events_to_execute[i].get('type') == 'mouse_click' and events_to_execute[i].get('pressed'):
+                    if events_to_execute[i].get('button') == events_to_execute[last_up_idx].get('button'):
+                        last_down_idx = i
+                        break
+            
+            if last_down_idx != -1:
+                # El usuario quiere ignorar el ÚLTIMO click.
+                # Lo removemos de la lista de ejecución.
+                # Removemos de atrás hacia adelante para no alterar los índices
+                events_to_execute.pop(last_up_idx)
+                events_to_execute.pop(last_down_idx)
+
         last_time = 0
-        for event in events:
+        for event in events_to_execute:
             # Esperar el tiempo correcto
             time_diff = event['time'] - last_time
             if time_diff > 0:
@@ -1951,7 +2027,7 @@ curl -X POST http://localhost:8080/api/execute/task -H "Content-Type: applicatio
             self._execute_event(event)
 
     def _execute_custom_queue(self, processed_tasks, repeat_mode, repeat_count):
-        """Ejecuta una cola personalizada con configuraciÃ³n avanzada"""
+        """Ejecuta una cola personalizada con configuración avanzada"""
         try:
             cycle = 0
             while True:
@@ -1985,7 +2061,7 @@ curl -X POST http://localhost:8080/api/execute/task -H "Content-Type: applicatio
                         if rep < repeat_task - 1:
                             time.sleep(0.5)
 
-                    # Pausa despuÃ©s de la tarea (excepto despuÃ©s de la Ãºltima)
+                    # Pausa después de la tarea (excepto después de la última)
                     if i < len(processed_tasks) - 1:
                         time.sleep(pause_after)
 
@@ -2083,6 +2159,13 @@ curl -X POST http://localhost:8080/api/execute/task -H "Content-Type: applicatio
                     btn_panel,
                     text="Copiar",
                     command=lambda pid=prompt_id, extra_widget=extra_entry: self.copy_saved_quick_prompt(pid, extra_widget),
+                    width=8
+                ).pack(side=tk.LEFT, padx=2)
+                
+                ttk.Button(
+                    btn_panel,
+                    text="Editar",
+                    command=lambda pid=prompt_id: self.load_prompt_for_edit(pid),
                     width=8
                 ).pack(side=tk.LEFT, padx=2)
                 
