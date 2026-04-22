@@ -1,0 +1,8 @@
+[
+  {
+    "id": "1776880563390-c71b6b",
+    "title": "Estado boton login ANSES",
+    "prompt": "Solo debes contestar utilizando una sola palabra HABILITADO O INHABILITADO\nMira los siguientes ejemplos:\nBoton inhabilitado:\n <input type=\"submit\" name=\"ctl00$PlaceContent$Ingresar\" value=\"&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; INGRESAR &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;\" id=\"Ingresar\" class=\"btn btn-default\" aria-label=\"Ingresar\">\nBoton habilidato:\n<input type=\"submit\" name=\"ctl00$PlaceContent$Ingresar\" value=\"&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; INGRESAR &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;\" id=\"Ingresar\" class=\"btn btn-default\" aria-label=\"Ingresar\">\nComo esta actualmente el botón real:",
+    "extra": ""
+  }
+]
