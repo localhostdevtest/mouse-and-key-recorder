@@ -8,6 +8,8 @@ from pynput.mouse import Button, Listener as MouseListener
 from pynput.keyboard import Key, Listener as KeyboardListener
 import os
 import shutil
+import io
+import ctypes
 from PIL import Image, ImageTk, ImageGrab
 from datetime import datetime
 from flask import Flask, request, jsonify
@@ -625,60 +627,76 @@ class MouseKeyboardRecorder:
         self.execution_status_label.pack(pady=(10, 0))
 
     def setup_main_panel_tab(self):
-        """Configura la botonera principal"""
-        main_frame = ttk.Frame(self.main_panel_frame, padding="20")
-        main_frame.pack(fill=tk.BOTH, expand=True)
+        """Configura la botonera principal en 3 columnas"""
+        # Contenedor principal sin padding para maximizar espacio
+        main_container = ttk.Frame(self.main_panel_frame)
+        main_container.pack(fill=tk.BOTH, expand=True)
 
-        title_label = ttk.Label(main_frame, text="Botonera Principal",
-                                font=("Arial", 16, "bold"))
-        title_label.pack(pady=(0, 10))
-
-        subtitle_label = ttk.Label(
-            main_frame,
-            text="Accesos rapidos a grabaciones, prompts y capturas desde un solo lugar."
-        )
-        subtitle_label.pack(pady=(0, 15))
-
-        canvas_frame = ttk.Frame(main_frame)
-        canvas_frame.pack(fill=tk.BOTH, expand=True)
-
-        self.main_panel_canvas = tk.Canvas(canvas_frame, highlightthickness=0)
-        main_panel_scrollbar = ttk.Scrollbar(canvas_frame, orient=tk.VERTICAL, command=self.main_panel_canvas.yview)
+        # Canvas para scroll vertical
+        self.main_panel_canvas = tk.Canvas(main_container, highlightthickness=0)
+        main_panel_scrollbar = ttk.Scrollbar(main_container, orient=tk.VERTICAL, command=self.main_panel_canvas.yview)
+        
+        # El contenedor real donde iran las columnas
         self.main_panel_inner = ttk.Frame(self.main_panel_canvas)
 
-        self.main_panel_inner.bind(
-            "<Configure>",
-            lambda event: self.main_panel_canvas.configure(scrollregion=self.main_panel_canvas.bbox("all"))
-        )
+        # Configuramos el scrollregion cuando el frame interno cambia de tamaño
+        def _on_frame_configure(event):
+            self.main_panel_canvas.configure(scrollregion=self.main_panel_canvas.bbox("all"))
+        self.main_panel_inner.bind("<Configure>", _on_frame_configure)
 
-        self.main_panel_canvas.create_window((0, 0), window=self.main_panel_inner, anchor="nw")
+        # Creamos la ventana en el canvas y guardamos el ID
+        self.canvas_window_id = self.main_panel_canvas.create_window((0, 0), window=self.main_panel_inner, anchor="nw")
+        
+        # Sincronizamos el ancho del frame interno con el del canvas
+        def _on_canvas_configure(event):
+            self.main_panel_canvas.itemconfig(self.canvas_window_id, width=event.width)
+        self.main_panel_canvas.bind("<Configure>", _on_canvas_configure)
+
         self.main_panel_canvas.configure(yscrollcommand=main_panel_scrollbar.set)
         self.main_panel_canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         main_panel_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
 
-        # Matriz Rapida en Botonera
-        self.matrix_quick_section = ttk.LabelFrame(self.main_panel_inner, text="Ejecutar Matriz Rápida", padding="10")
-        self.matrix_quick_section.pack(fill=tk.X, pady=(0, 12))
+        # ====== CREACION DE LAS 3 COLUMNAS ======
+        # Usamos un PanedWindow horizontal para que las 3 columnas sean redimensionables y visibles
+        self.paned_cols = ttk.PanedWindow(self.main_panel_inner, orient=tk.HORIZONTAL)
+        self.paned_cols.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+
+        # COLUMNA 1: Grabaciones y Tareas
+        self.col1_frame = ttk.Frame(self.paned_cols)
+        self.main_recordings_section = ttk.LabelFrame(self.col1_frame, text="Tareas y Grabaciones (Lista)", padding="10")
+        self.main_recordings_section.pack(fill=tk.BOTH, expand=True, padx=5)
+
+        # COLUMNA 2: Matriz y Prompts
+        self.col2_frame = ttk.Frame(self.paned_cols)
+        
+        # Matriz Rapida en Columna 2
+        self.matrix_quick_section = ttk.LabelFrame(self.col2_frame, text="Ejecutar Matriz Rápida", padding="10")
+        self.matrix_quick_section.pack(fill=tk.X, pady=(0, 12), padx=5)
         
         matrix_input_frame = ttk.Frame(self.matrix_quick_section)
         matrix_input_frame.pack(fill=tk.X)
         
-        ttk.Label(matrix_input_frame, text="Secuencia (ej: 1x2 3x3):").pack(side=tk.LEFT, padx=(0, 5))
+        ttk.Label(matrix_input_frame, text="Secuencia (ej: 1x2 3x3):").pack(anchor=tk.W)
         self.matrix_quick_var = tk.StringVar()
-        ttk.Entry(matrix_input_frame, textvariable=self.matrix_quick_var, font=("Arial", 11)).pack(side=tk.LEFT, fill=tk.X, expand=True, padx=5)
+        ttk.Entry(matrix_input_frame, textvariable=self.matrix_quick_var, font=("Arial", 11)).pack(fill=tk.X, pady=5)
         
-        ttk.Button(matrix_input_frame, text="▶ Ejecutar", command=lambda: self.execute_matrix_sequence(self.matrix_quick_var.get())).pack(side=tk.LEFT, padx=5)
+        ttk.Button(matrix_input_frame, text="▶ Ejecutar Secuencia", command=lambda: self.execute_matrix_sequence(self.matrix_quick_var.get())).pack(fill=tk.X)
         self.matrix_quick_status = ttk.Label(self.matrix_quick_section, text="", foreground="blue", font=("Arial", 9))
         self.matrix_quick_status.pack(pady=(5, 0))
 
-        self.main_recordings_section = ttk.LabelFrame(self.main_panel_inner, text="Grabaciones", padding="10")
-        self.main_recordings_section.pack(fill=tk.X, pady=(0, 12))
+        # Prompts en Columna 2
+        self.main_prompts_section = ttk.LabelFrame(self.col2_frame, text="Prompts rápidos", padding="10")
+        self.main_prompts_section.pack(fill=tk.BOTH, expand=True, padx=5)
 
-        self.main_prompts_section = ttk.LabelFrame(self.main_panel_inner, text="Prompts rapidos", padding="10")
-        self.main_prompts_section.pack(fill=tk.X, pady=(0, 12))
+        # COLUMNA 3: Capturas
+        self.col3_frame = ttk.Frame(self.paned_cols)
+        self.main_screenshots_section = ttk.LabelFrame(self.col3_frame, text="Regiones de Captura", padding="10")
+        self.main_screenshots_section.pack(fill=tk.BOTH, expand=True, padx=5)
 
-        self.main_screenshots_section = ttk.LabelFrame(self.main_panel_inner, text="Capturas", padding="10")
-        self.main_screenshots_section.pack(fill=tk.X, pady=(0, 12))
+        # Añadirlos al PanedWindow con pesos iguales
+        self.paned_cols.add(self.col1_frame, weight=1)
+        self.paned_cols.add(self.col2_frame, weight=1)
+        self.paned_cols.add(self.col3_frame, weight=1)
 
         self.refresh_main_panel()
 
@@ -965,11 +983,19 @@ curl -X POST http://localhost:8080/api/execute/task -H "Content-Type: applicatio
         )
         self.capture_region_btn.pack(side=tk.LEFT, padx=(0, 10))
 
+        self.rename_region_btn = ttk.Button(
+            controls_frame,
+            text="Renombrar",
+            command=self.rename_selected_screenshot_region,
+            width=15
+        )
+        self.rename_region_btn.pack(side=tk.LEFT, padx=(0, 10))
+
         self.delete_region_btn = ttk.Button(
             controls_frame,
-            text="Eliminar Region",
+            text="Eliminar",
             command=self.delete_selected_screenshot_region,
-            width=20
+            width=15
         )
         self.delete_region_btn.pack(side=tk.LEFT)
 
@@ -1806,14 +1832,31 @@ curl -X POST http://localhost:8080/api/execute/task -H "Content-Type: applicatio
             extra_entry.insert(0, "")
 
             prompt_id = prompt_item.get('id', '')
+            
+            # Botones: Copiar y Borrar
+            btn_frame = ttk.Frame(row)
+            btn_frame.grid(row=0, column=2, sticky=tk.E)
+            
             ttk.Button(
-                row,
+                btn_frame,
                 text="Copiar",
                 command=lambda pid=prompt_id, extra_widget=extra_entry: self.copy_saved_quick_prompt(pid, extra_widget),
-                width=12
-            ).grid(row=0, column=2, sticky=tk.E)
+                width=10
+            ).pack(side=tk.LEFT, padx=2)
+            
+            ttk.Button(
+                btn_frame,
+                text="Borrar",
+                command=lambda pid=prompt_id: self.confirm_delete_prompt(pid),
+                width=10
+            ).pack(side=tk.LEFT, padx=2)
 
             row.columnconfigure(1, weight=1)
+
+    def confirm_delete_prompt(self, prompt_id):
+        """Muestra confirmacion antes de borrar un prompt"""
+        if messagebox.askyesno("Confirmar", "Estas seguro de que quieres eliminar este prompt?"):
+            self.delete_saved_quick_prompt(prompt_id)
 
     def save_quick_prompt_from_form(self):
         """Guarda un prompt rapido nuevo"""
@@ -1974,12 +2017,9 @@ curl -X POST http://localhost:8080/api/execute/task -H "Content-Type: applicatio
         recordings_table = ttk.Frame(self.main_recordings_section)
         recordings_table.pack(fill=tk.X)
 
-        ttk.Label(recordings_table, text="Nombre", width=44).grid(row=0, column=0, sticky=tk.W, padx=4)
-        ttk.Label(recordings_table, text="Accion", width=12).grid(row=0, column=1, sticky=tk.W, padx=4)
-
         if self.recorded_events:
             current_row = ttk.Frame(recordings_table, relief=tk.RIDGE, padding=6)
-            current_row.grid(row=1, column=0, columnspan=2, sticky=tk.EW, pady=3)
+            current_row.grid(row=0, column=0, columnspan=4, sticky=tk.EW, pady=3)
 
             ttk.Label(current_row, text=f"Grabacion actual ({len(self.recorded_events)} eventos)").grid(row=0, column=0, sticky=tk.W, padx=4)
             ttk.Button(
@@ -1998,27 +2038,22 @@ curl -X POST http://localhost:8080/api/execute/task -H "Content-Type: applicatio
             combined_list.append({"name": f"[Archivo] {f['name']}", "is_task": False, "target": f['path']})
 
         if not combined_list:
-            ttk.Label(recordings_table, text="No hay tareas ni grabaciones guardadas.").grid(row=2, column=0, columnspan=2, sticky=tk.W, padx=4, pady=(6, 0))
+            ttk.Label(recordings_table, text="No hay tareas ni grabaciones guardadas.").pack(anchor=tk.W, padx=4, pady=6)
         else:
-            start_row = 2 if self.recorded_events else 1
-            for idx, item in enumerate(combined_list, start=start_row):
+            # Lista vertical estilo tabla
+            for item in combined_list:
                 row = ttk.Frame(recordings_table, relief=tk.RIDGE, padding=6)
-                row.grid(row=idx, column=0, columnspan=2, sticky=tk.EW, pady=3)
+                row.pack(fill=tk.X, pady=2)
 
-                ttk.Label(row, text=item['name']).grid(row=0, column=0, sticky=tk.W, padx=4)
+                name_label = ttk.Label(row, text=item['name'], font=("Arial", 9, "bold"))
+                name_label.pack(side=tk.LEFT, padx=4)
                 
                 if item['is_task']:
                     cmd = lambda t=item['target']: threading.Thread(target=self._execute_single_task, args=(t,), daemon=True).start()
                 else:
                     cmd = lambda p=item['target']: self.play_recording_file(p)
 
-                ttk.Button(
-                    row,
-                    text="Reproducir",
-                    command=cmd,
-                    width=12
-                ).grid(row=0, column=1, sticky=tk.E, padx=4)
-                row.columnconfigure(0, weight=1)
+                ttk.Button(row, text="▶ Reproducir", command=cmd, width=12).pack(side=tk.RIGHT, padx=4)
 
         if not self.quick_prompts:
             ttk.Label(self.main_prompts_section, text="Todavia no hay prompts guardados.").pack(anchor=tk.W)
@@ -2026,31 +2061,45 @@ curl -X POST http://localhost:8080/api/execute/task -H "Content-Type: applicatio
             prompt_table = ttk.Frame(self.main_prompts_section)
             prompt_table.pack(fill=tk.X)
 
-            ttk.Label(prompt_table, text="Titulo", width=28).grid(row=0, column=0, sticky=tk.W, padx=4)
-            ttk.Label(prompt_table, text="Extra", width=34).grid(row=0, column=1, sticky=tk.W, padx=4)
-            ttk.Label(prompt_table, text="Accion", width=12).grid(row=0, column=2, sticky=tk.W, padx=4)
+            ttk.Label(prompt_table, text="Titulo", width=20).grid(row=0, column=0, sticky=tk.W, padx=4)
+            ttk.Label(prompt_table, text="Extra", width=20).grid(row=0, column=1, sticky=tk.W, padx=4)
+            ttk.Label(prompt_table, text="Accion", width=10).grid(row=0, column=2, sticky=tk.W, padx=4)
 
             for idx, prompt_item in enumerate(self.quick_prompts, start=1):
-                row = ttk.Frame(prompt_table, relief=tk.RIDGE, padding=6)
-                row.grid(row=idx, column=0, columnspan=3, sticky=tk.EW, pady=3)
+                row = ttk.Frame(prompt_table, relief=tk.RIDGE, padding=4)
+                row.grid(row=idx, column=0, columnspan=3, sticky=tk.EW, pady=2)
 
-                ttk.Label(row, text=prompt_item.get('title', ''), width=28).grid(row=0, column=0, sticky=tk.W, padx=4)
-                extra_entry = ttk.Entry(row)
+                ttk.Label(row, text=prompt_item.get('title', ''), width=20).grid(row=0, column=0, sticky=tk.W, padx=4)
+                extra_entry = ttk.Entry(row, width=20)
                 extra_entry.grid(row=0, column=1, sticky=tk.EW, padx=4)
 
                 prompt_id = prompt_item.get('id', '')
+                
+                # Botones: Copiar y Borrar
+                btn_panel = ttk.Frame(row)
+                btn_panel.grid(row=0, column=2, sticky=tk.E, padx=4)
+                
                 ttk.Button(
-                    row,
+                    btn_panel,
                     text="Copiar",
                     command=lambda pid=prompt_id, extra_widget=extra_entry: self.copy_saved_quick_prompt(pid, extra_widget),
-                    width=12
-                ).grid(row=0, column=2, sticky=tk.E, padx=4)
+                    width=8
+                ).pack(side=tk.LEFT, padx=2)
+                
+                ttk.Button(
+                    btn_panel,
+                    text="Borrar",
+                    command=lambda pid=prompt_id: self.confirm_delete_prompt(pid),
+                    width=8
+                ).pack(side=tk.LEFT, padx=2)
+                
                 row.columnconfigure(1, weight=1)
 
         capture_header = ttk.Frame(self.main_screenshots_section)
         capture_header.pack(fill=tk.X, pady=(0, 6))
-        ttk.Button(capture_header, text="Nueva Captura Exacta", command=self.start_area_capture, width=22).pack(side=tk.LEFT)
-        ttk.Button(capture_header, text="Vaciar Capturas", command=self.clear_screenshots_folder, width=18).pack(side=tk.RIGHT)
+        ttk.Button(capture_header, text="Nueva Captura Exacta", command=self.start_area_capture, width=22).pack(fill=tk.X, pady=2)
+        ttk.Button(capture_header, text="📁 Copiar Ruta de Capturas", command=self.copy_screenshots_path, width=22).pack(fill=tk.X, pady=2)
+        ttk.Button(capture_header, text="Vaciar Capturas", command=self.clear_screenshots_folder, width=22).pack(fill=tk.X, pady=2)
 
         if not self.screenshot_regions:
             ttk.Label(self.main_screenshots_section, text="No hay regiones guardadas todavia.").pack(anchor=tk.W, pady=(8, 0))
@@ -2058,16 +2107,20 @@ curl -X POST http://localhost:8080/api/execute/task -H "Content-Type: applicatio
             capture_table = ttk.Frame(self.main_screenshots_section)
             capture_table.pack(fill=tk.X, pady=(8, 0))
 
-            ttk.Label(capture_table, text="Captura", width=44).grid(row=0, column=0, sticky=tk.W, padx=4)
-            ttk.Label(capture_table, text="Accion", width=12).grid(row=0, column=1, sticky=tk.W, padx=4)
-
             for idx, (region_name, region_data) in enumerate(self.screenshot_regions.items(), start=1):
                 row = ttk.Frame(capture_table, relief=tk.RIDGE, padding=6)
-                row.grid(row=idx, column=0, columnspan=2, sticky=tk.EW, pady=3)
-                bbox = region_data.get('bbox', [0, 0, 0, 0])
-                ttk.Label(row, text=f"{region_name} [{bbox[0]}, {bbox[1]} -> {bbox[2]}, {bbox[3]}]", width=44).grid(row=0, column=0, sticky=tk.W, padx=4)
-                ttk.Button(row, text="Capturar", command=lambda rn=region_name: self.capture_screenshot_region(rn), width=12).grid(row=0, column=1, sticky=tk.E, padx=4)
-                row.columnconfigure(0, weight=1)
+                row.pack(fill=tk.X, pady=2)
+                
+                name_label = ttk.Label(row, text=region_name, font=("Arial", 9, "bold"))
+                name_label.pack(side=tk.LEFT, padx=4)
+                
+                # Botones de accion para cada captura
+                btn_frame = ttk.Frame(row)
+                btn_frame.pack(side=tk.RIGHT)
+                
+                ttk.Button(btn_frame, text="Renombrar", command=lambda rn=region_name: self.rename_selected_screenshot_region_by_name(rn), width=10).pack(side=tk.LEFT, padx=2)
+                ttk.Button(btn_frame, text="Capturar", command=lambda rn=region_name: self.capture_screenshot_region(rn), width=10).pack(side=tk.LEFT, padx=2)
+
 
     def refresh_prompt_tasks(self):
         """Actualiza la lista de tareas en la pestaÃ±a de prompts"""
@@ -2473,6 +2526,36 @@ print(response.json())"""
 
         self.capture_screenshot_region(region_name)
 
+    def copy_image_to_clipboard(self, image):
+        """Copia una imagen PIL al portapapeles de Windows en formato DIB"""
+        try:
+            # Convertir PIL Image a formato BMP/DIB
+            output = io.BytesIO()
+            image.convert('RGB').save(output, 'BMP')
+            data = output.getvalue()[14:]  # Quitar el encabezado BMP (14 bytes) para tener el DIB
+            output.close()
+
+            # Abrir portapapeles y vaciarlo
+            if ctypes.windll.user32.OpenClipboard(None):
+                ctypes.windll.user32.EmptyClipboard()
+                
+                # Alojar memoria global para el DIB
+                GHND = 0x0042
+                h_mem = ctypes.windll.kernel32.GlobalAlloc(GHND, len(data))
+                ptr = ctypes.windll.kernel32.GlobalLock(h_mem)
+                
+                # Copiar datos a la memoria alojada
+                ctypes.memmove(ptr, data, len(data))
+                ctypes.windll.kernel32.GlobalUnlock(h_mem)
+                
+                # CF_DIB = 8
+                ctypes.windll.user32.SetClipboardData(8, h_mem)
+                ctypes.windll.user32.CloseClipboard()
+                return True
+        except Exception as e:
+            print(f"Error copiando imagen al portapapeles: {e}")
+        return False
+
     def capture_screenshot_region(self, region_name):
         """Captura una region guardada por nombre"""
         region_data = self.screenshot_regions.get(region_name)
@@ -2499,10 +2582,63 @@ print(response.json())"""
             self.last_screenshot = filepath
             self.active_screenshot_region = region_name
             self.screenshot_label.config(text=f"Ultima captura: {os.path.basename(filepath)}")
-            self.status_label.config(text=f"Captura realizada: {region_name}")
+            # Copiar al portapapeles automáticamente
+            self.copy_image_to_clipboard(screenshot)
+            
+            self.status_label.config(text=f"Captura realizada y copiada al portapapeles: {region_name}")
         except Exception as e:
             self.status_label.config(text=f"Error al capturar region: {str(e)}")
             print(f"Error al capturar region: {e}")
+
+    def rename_selected_screenshot_region(self):
+        """Renombra la region seleccionada"""
+        region_name = self.get_selected_screenshot_region_name()
+        if not region_name:
+            self.status_label.config(text="Selecciona una region para renombrar")
+            return
+            
+        new_name = simpledialog.askstring("Renombrar Region", f"Nuevo nombre para '{region_name}':", initialvalue=region_name, parent=self.root)
+        if not new_name or new_name.strip() == "" or new_name == region_name:
+            return
+            
+        new_name = new_name.strip()
+        if new_name in self.screenshot_regions:
+            messagebox.showwarning("Advertencia", f"Ya existe una region con el nombre '{new_name}'")
+            return
+            
+        # Actualizar diccionario
+        self.screenshot_regions[new_name] = self.screenshot_regions.pop(region_name)
+        self.save_screenshot_regions_to_file()
+        self.refresh_screenshot_regions_list()
+        
+        self.status_label.config(text=f"Region renombrada a '{new_name}'")
+
+    def rename_selected_screenshot_region_by_name(self, current_name=None):
+        """Renombra una region pasando el nombre directamente"""
+        region_name = current_name if current_name else self.get_selected_screenshot_region_name()
+        if not region_name:
+            self.status_label.config(text="No se pudo identificar la region para renombrar")
+            return
+            
+        new_name = simpledialog.askstring("Renombrar Region", f"Nuevo nombre para '{region_name}':", initialvalue=region_name, parent=self.root)
+        if not new_name or new_name.strip() == "" or new_name == region_name:
+            return
+            
+        new_name = new_name.strip()
+        if new_name in self.screenshot_regions:
+            messagebox.showwarning("Advertencia", f"Ya existe una region con el nombre '{new_name}'")
+            return
+            
+        # Actualizar diccionario
+        self.screenshot_regions[new_name] = self.screenshot_regions.pop(region_name)
+        if self.active_screenshot_region == region_name:
+            self.active_screenshot_region = new_name
+            
+        self.save_screenshot_regions_to_file()
+        self.refresh_screenshot_regions_list()
+        self.refresh_main_panel()
+        
+        self.status_label.config(text=f"Region renombrada a '{new_name}'")
 
     def delete_selected_screenshot_region(self):
         """Elimina la region seleccionada"""
@@ -2523,6 +2659,13 @@ print(response.json())"""
             self.refresh_screenshot_regions_list()
             self.refresh_main_panel()
             self.status_label.config(text=f"Region eliminada: {region_name}")
+
+    def copy_screenshots_path(self):
+        """Copia la ruta absoluta de la carpeta de capturas al portapapeles"""
+        path = os.path.abspath("screenshots")
+        self.root.clipboard_clear()
+        self.root.clipboard_append(path)
+        self.status_label.config(text=f"Ruta copiada: {path}")
 
     def clear_screenshots_folder(self):
         """Borra todos los archivos de la carpeta screenshots"""

@@ -1,8 +1,8 @@
 [
   {
-    "id": "1776880563390-c71b6b",
-    "title": "Estado boton login ANSES",
-    "prompt": "Solo debes contestar utilizando una sola palabra HABILITADO O INHABILITADO\nMira los siguientes ejemplos:\nBoton inhabilitado:\n <input type=\"submit\" name=\"ctl00$PlaceContent$Ingresar\" value=\"&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; INGRESAR &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;\" id=\"Ingresar\" class=\"btn btn-default\" aria-label=\"Ingresar\">\nBoton habilidato:\n<input type=\"submit\" name=\"ctl00$PlaceContent$Ingresar\" value=\"&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; INGRESAR &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;\" id=\"Ingresar\" class=\"btn btn-default\" aria-label=\"Ingresar\">\nComo esta actualmente el botón real:",
+    "id": "1776886789185-6016d1",
+    "title": "1-Estado de captcha",
+    "prompt": "Me debes contestar unicamente con una sola palabra, Aprobado si el captcha tiene la tilde verde de realizado, Verficar si el boton de abajo a la derecha dice Verificar o Recargar si el boton de abajo a la derecha dice otra cosa como saltar o cualqueir otra cosa que no sea lo que te indique.",
     "extra": ""
   }
 ]

@@ -1,1 +1,12 @@
-{}
+{
+  "Verificar estado de captcha": {
+    "bbox": [
+      12,
+      158,
+      497,
+      768
+    ],
+    "created_at": "2026-04-22T16:38:03.141571",
+    "last_capture": "screenshots\\verificar_estado_de_captcha_20260422_164911.png"
+  }
+}
