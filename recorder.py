@@ -370,12 +370,17 @@ class MouseKeyboardRecorder:
         self.notebook.add(self.tasks_frame, text="📋 Tareas")
         self.setup_tasks_tab()
 
-        # Pestaña 3: Servidor HTTP
+        # Pestaña 4: Teclado de Prompts
+        self.prompts_frame = ttk.Frame(self.notebook)
+        self.notebook.add(self.prompts_frame, text="💬 Prompts")
+        self.setup_prompts_tab()
+
+        # Pestaña 5: Servidor HTTP
         self.server_frame = ttk.Frame(self.notebook)
         self.notebook.add(self.server_frame, text="🌐 API Server")
         self.setup_server_tab()
 
-        # Pestaña 4: Captura de Pantalla
+        # Pestaña 6: Captura de Pantalla
         self.screenshot_frame = ttk.Frame(self.notebook)
         self.notebook.add(self.screenshot_frame, text="📸 Screenshots")
         self.setup_screenshot_tab()
@@ -570,6 +575,109 @@ class MouseKeyboardRecorder:
         self.execution_status_label = ttk.Label(right_frame, text="Listo para ejecutar",
                                               font=("Arial", 10))
         self.execution_status_label.pack(pady=(10, 0))
+
+    def setup_prompts_tab(self):
+        """Configura la pestaña del teclado de prompts"""
+        main_frame = ttk.Frame(self.prompts_frame, padding="20")
+        main_frame.pack(fill=tk.BOTH, expand=True)
+
+        # Título
+        title_label = ttk.Label(main_frame, text="💬 Teclado de Prompts",
+                               font=("Arial", 16, "bold"))
+        title_label.pack(pady=(0, 20))
+
+        # Frame principal con dos columnas
+        content_frame = ttk.Frame(main_frame)
+        content_frame.pack(fill=tk.BOTH, expand=True)
+
+        # Columna izquierda - Lista de tareas con prompts
+        left_frame = ttk.LabelFrame(content_frame, text="Tareas con Prompts", padding="10")
+        left_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(0, 10))
+
+        # Listbox para tareas
+        self.prompt_tasks_listbox = tk.Listbox(left_frame, height=12)
+        scrollbar_prompt_tasks = ttk.Scrollbar(left_frame, orient=tk.VERTICAL, command=self.prompt_tasks_listbox.yview)
+        self.prompt_tasks_listbox.configure(yscrollcommand=scrollbar_prompt_tasks.set)
+        self.prompt_tasks_listbox.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        scrollbar_prompt_tasks.pack(side=tk.RIGHT, fill=tk.Y)
+
+        # Bind para selección de tarea
+        self.prompt_tasks_listbox.bind('<<ListboxSelect>>', self.on_prompt_task_select)
+
+        # Botones de gestión de prompts
+        prompt_buttons_frame = ttk.Frame(left_frame)
+        prompt_buttons_frame.pack(fill=tk.X, pady=(10, 0))
+
+        self.edit_prompt_btn = ttk.Button(prompt_buttons_frame, text="✏️ Editar Prompt",
+                                        command=self.edit_task_prompt, width=15)
+        self.edit_prompt_btn.pack(side=tk.LEFT, padx=(0, 5))
+
+        self.refresh_prompts_btn = ttk.Button(prompt_buttons_frame, text="🔄 Actualizar",
+                                            command=self.refresh_prompt_tasks, width=15)
+        self.refresh_prompts_btn.pack(side=tk.LEFT, padx=5)
+
+        # Columna derecha - Generador de prompts
+        right_frame = ttk.LabelFrame(content_frame, text="Generador de Prompts", padding="10")
+        right_frame.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True)
+
+        # Información de la tarea seleccionada
+        self.selected_task_label = ttk.Label(right_frame, text="Selecciona una tarea",
+                                           font=("Arial", 12, "bold"))
+        self.selected_task_label.pack(pady=(0, 10))
+
+        # Template del prompt (solo lectura)
+        ttk.Label(right_frame, text="Plantilla del Prompt:", font=("Arial", 10, "bold")).pack(anchor=tk.W)
+
+        template_frame = ttk.Frame(right_frame)
+        template_frame.pack(fill=tk.BOTH, expand=True, pady=(5, 10))
+
+        self.prompt_template_text = tk.Text(template_frame, height=8, wrap=tk.WORD,
+                                          font=("Arial", 9), state=tk.DISABLED)
+        scrollbar_template = ttk.Scrollbar(template_frame, orient=tk.VERTICAL,
+                                         command=self.prompt_template_text.yview)
+        self.prompt_template_text.configure(yscrollcommand=scrollbar_template.set)
+        self.prompt_template_text.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        scrollbar_template.pack(side=tk.RIGHT, fill=tk.Y)
+
+        # Área de contenido dinámico
+        dynamic_frame = ttk.LabelFrame(right_frame, text="Contenido Dinámico", padding="10")
+        dynamic_frame.pack(fill=tk.X, pady=(10, 0))
+
+        ttk.Label(dynamic_frame, text="Pega aquí el contenido variable (ej: HTML del botón):").pack(anchor=tk.W)
+
+        self.dynamic_content_text = tk.Text(dynamic_frame, height=4, wrap=tk.WORD, font=("Consolas", 9))
+        scrollbar_dynamic = ttk.Scrollbar(dynamic_frame, orient=tk.VERTICAL,
+                                        command=self.dynamic_content_text.yview)
+        self.dynamic_content_text.configure(yscrollcommand=scrollbar_dynamic.set)
+        self.dynamic_content_text.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        scrollbar_dynamic.pack(side=tk.RIGHT, fill=tk.Y)
+
+        # Botones de acción
+        action_buttons_frame = ttk.Frame(right_frame)
+        action_buttons_frame.pack(fill=tk.X, pady=(15, 0))
+
+        self.generate_prompt_btn = ttk.Button(action_buttons_frame, text="🔧 Generar Prompt Final",
+                                            command=self.generate_final_prompt, width=20)
+        self.generate_prompt_btn.pack(side=tk.LEFT, padx=(0, 5))
+
+        self.copy_prompt_btn = ttk.Button(action_buttons_frame, text="📋 Copiar al Portapapeles",
+                                        command=self.copy_final_prompt, width=20)
+        self.copy_prompt_btn.pack(side=tk.LEFT, padx=5)
+
+        # Área del prompt final
+        final_frame = ttk.LabelFrame(right_frame, text="Prompt Final Generado", padding="10")
+        final_frame.pack(fill=tk.BOTH, expand=True, pady=(15, 0))
+
+        self.final_prompt_text = tk.Text(final_frame, height=6, wrap=tk.WORD,
+                                       font=("Arial", 9), state=tk.DISABLED)
+        scrollbar_final = ttk.Scrollbar(final_frame, orient=tk.VERTICAL,
+                                      command=self.final_prompt_text.yview)
+        self.final_prompt_text.configure(yscrollcommand=scrollbar_final.set)
+        self.final_prompt_text.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        scrollbar_final.pack(side=tk.RIGHT, fill=tk.Y)
+
+        # Cargar tareas al inicio
+        self.refresh_prompt_tasks()
 
     def setup_server_tab(self):
         """Configura la pestaña del servidor HTTP"""
@@ -962,7 +1070,8 @@ print(response.json())
             'description': task_description,
             'events': self.recorded_events.copy(),
             'created_at': datetime.now().isoformat(),
-            'event_count': len(self.recorded_events)
+            'event_count': len(self.recorded_events),
+            'prompt_template': ''  # Nueva funcionalidad de prompt
         }
 
         # Guardar tarea
@@ -1298,6 +1407,233 @@ print(response.json())
         except Exception as e:
             self.root.after(0, lambda: messagebox.showerror("Error", f"Error ejecutando cola personalizada: {str(e)}"))
             self.root.after(0, lambda: self.execution_status_label.config(text="❌ Error en ejecución"))
+
+    # ==================== MÉTODOS DEL TECLADO DE PROMPTS ====================
+
+    def refresh_prompt_tasks(self):
+        """Actualiza la lista de tareas en la pestaña de prompts"""
+        self.prompt_tasks_listbox.delete(0, tk.END)
+        for task_name, task_data in self.tasks.items():
+            has_prompt = bool(task_data.get('prompt_template', '').strip())
+            status_icon = "💬" if has_prompt else "📝"
+            display_text = f"{status_icon} {task_name}"
+            self.prompt_tasks_listbox.insert(tk.END, display_text)
+
+    def on_prompt_task_select(self, event):
+        """Maneja la selección de una tarea en la lista de prompts"""
+        selection = self.prompt_tasks_listbox.curselection()
+        if not selection:
+            return
+
+        task_names = list(self.tasks.keys())
+        if selection[0] >= len(task_names):
+            return
+
+        task_name = task_names[selection[0]]
+        task = self.tasks[task_name]
+
+        # Actualizar información de la tarea seleccionada
+        self.selected_task_label.config(text=f"Tarea: {task_name}")
+
+        # Mostrar template del prompt
+        prompt_template = task.get('prompt_template', '')
+        self.prompt_template_text.config(state=tk.NORMAL)
+        self.prompt_template_text.delete(1.0, tk.END)
+        if prompt_template:
+            self.prompt_template_text.insert(1.0, prompt_template)
+        else:
+            self.prompt_template_text.insert(1.0, "Esta tarea no tiene un prompt configurado.\nHaz clic en 'Editar Prompt' para crear uno.")
+        self.prompt_template_text.config(state=tk.DISABLED)
+
+        # Limpiar áreas de trabajo
+        self.dynamic_content_text.delete(1.0, tk.END)
+        self.final_prompt_text.config(state=tk.NORMAL)
+        self.final_prompt_text.delete(1.0, tk.END)
+        self.final_prompt_text.config(state=tk.DISABLED)
+
+    def edit_task_prompt(self):
+        """Abre el editor de prompt para la tarea seleccionada"""
+        selection = self.prompt_tasks_listbox.curselection()
+        if not selection:
+            messagebox.showwarning("Advertencia", "Selecciona una tarea para editar su prompt")
+            return
+
+        task_names = list(self.tasks.keys())
+        task_name = task_names[selection[0]]
+        task = self.tasks[task_name]
+
+        # Crear ventana de edición de prompt
+        prompt_window = tk.Toplevel(self.root)
+        prompt_window.title(f"Editor de Prompt: {task_name}")
+        prompt_window.geometry("800x600")
+        prompt_window.transient(self.root)
+        prompt_window.grab_set()
+
+        # Frame principal
+        main_frame = ttk.Frame(prompt_window, padding="20")
+        main_frame.pack(fill=tk.BOTH, expand=True)
+
+        # Título
+        title_label = ttk.Label(main_frame, text=f"Editando Prompt para: {task_name}",
+                               font=("Arial", 14, "bold"))
+        title_label.pack(pady=(0, 20))
+
+        # Instrucciones
+        instructions_frame = ttk.LabelFrame(main_frame, text="Instrucciones", padding="10")
+        instructions_frame.pack(fill=tk.X, pady=(0, 15))
+
+        instructions_text = """💡 Cómo crear un prompt dinámico:
+
+1. Escribe tu plantilla de prompt en el área de abajo
+2. Usa {CONTENIDO_DINAMICO} donde quieras insertar contenido variable
+3. En la pestaña de Prompts, podrás pegar contenido específico y generar el prompt final
+
+Ejemplo:
+"Analiza el siguiente botón y determina si está habilitado:
+{CONTENIDO_DINAMICO}
+
+Responde solo: HABILITADO o INHABILITADO"
+"""
+
+        instructions_label = ttk.Label(instructions_frame, text=instructions_text,
+                                     font=("Arial", 9), justify=tk.LEFT)
+        instructions_label.pack(anchor=tk.W)
+
+        # Editor de prompt
+        ttk.Label(main_frame, text="Plantilla del Prompt:", font=("Arial", 12, "bold")).pack(anchor=tk.W, pady=(10, 5))
+
+        editor_frame = ttk.Frame(main_frame)
+        editor_frame.pack(fill=tk.BOTH, expand=True, pady=(0, 20))
+
+        prompt_editor = tk.Text(editor_frame, wrap=tk.WORD, font=("Arial", 10))
+        scrollbar_editor = ttk.Scrollbar(editor_frame, orient=tk.VERTICAL, command=prompt_editor.yview)
+        prompt_editor.configure(yscrollcommand=scrollbar_editor.set)
+
+        prompt_editor.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        scrollbar_editor.pack(side=tk.RIGHT, fill=tk.Y)
+
+        # Cargar prompt existente
+        current_prompt = task.get('prompt_template', '')
+        if current_prompt:
+            prompt_editor.insert(1.0, current_prompt)
+        else:
+            # Plantilla por defecto
+            default_template = f"""Ir a la URL
+Hacer click en el captcha
+Ver estado del botón
+Habilitado continuar
+Deshabilitado recargar y tocar captcha
+tomar captura de requerimiento
+Tomar captura matriz
+
+Estado del botón:
+Solo debes contestar utilizando una sola palabra HABILITADO O INHABILITADO
+Mira los siguientes ejemplos:
+
+Boton inhabilitado:
+<input type="submit" name="ctl00$PlaceContent$Ingresar" value="&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; INGRESAR &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;" id="Ingresar" class="btn btn-default" disabled aria-label="Ingresar">
+
+Boton habilitado:
+<input type="submit" name="ctl00$PlaceContent$Ingresar" value="&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; INGRESAR &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;" id="Ingresar" class="btn btn-default" aria-label="Ingresar">
+
+Como está actualmente el botón real:
+{{CONTENIDO_DINAMICO}}"""
+            prompt_editor.insert(1.0, default_template)
+
+        # Botones
+        buttons_frame = ttk.Frame(main_frame)
+        buttons_frame.pack(pady=10)
+
+        def save_prompt():
+            new_prompt = prompt_editor.get(1.0, tk.END).strip()
+            self.tasks[task_name]['prompt_template'] = new_prompt
+            self.save_tasks_to_file()
+            self.refresh_prompt_tasks()
+            prompt_window.destroy()
+            messagebox.showinfo("Éxito", f"Prompt guardado para la tarea '{task_name}'")
+
+        def preview_prompt():
+            current_text = prompt_editor.get(1.0, tk.END).strip()
+            preview_text = current_text.replace("{CONTENIDO_DINAMICO}", "[AQUÍ SE INSERTARÁ EL CONTENIDO DINÁMICO]")
+
+            preview_window = tk.Toplevel(prompt_window)
+            preview_window.title("Vista Previa del Prompt")
+            preview_window.geometry("600x400")
+            preview_window.transient(prompt_window)
+
+            preview_frame = ttk.Frame(preview_window, padding="20")
+            preview_frame.pack(fill=tk.BOTH, expand=True)
+
+            ttk.Label(preview_frame, text="Vista Previa:", font=("Arial", 12, "bold")).pack(anchor=tk.W, pady=(0, 10))
+
+            preview_text_widget = tk.Text(preview_frame, wrap=tk.WORD, font=("Arial", 10), state=tk.DISABLED)
+            preview_scrollbar = ttk.Scrollbar(preview_frame, orient=tk.VERTICAL, command=preview_text_widget.yview)
+            preview_text_widget.configure(yscrollcommand=preview_scrollbar.set)
+
+            preview_text_widget.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+            preview_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+
+            preview_text_widget.config(state=tk.NORMAL)
+            preview_text_widget.insert(1.0, preview_text)
+            preview_text_widget.config(state=tk.DISABLED)
+
+            ttk.Button(preview_frame, text="Cerrar", command=preview_window.destroy).pack(pady=10)
+
+        ttk.Button(buttons_frame, text="👁️ Vista Previa", command=preview_prompt).pack(side=tk.LEFT, padx=5)
+        ttk.Button(buttons_frame, text="💾 Guardar", command=save_prompt).pack(side=tk.LEFT, padx=5)
+        ttk.Button(buttons_frame, text="❌ Cancelar", command=prompt_window.destroy).pack(side=tk.LEFT, padx=5)
+
+    def generate_final_prompt(self):
+        """Genera el prompt final combinando la plantilla con el contenido dinámico"""
+        selection = self.prompt_tasks_listbox.curselection()
+        if not selection:
+            messagebox.showwarning("Advertencia", "Selecciona una tarea primero")
+            return
+
+        task_names = list(self.tasks.keys())
+        task_name = task_names[selection[0]]
+        task = self.tasks[task_name]
+
+        prompt_template = task.get('prompt_template', '')
+        if not prompt_template.strip():
+            messagebox.showwarning("Advertencia", "Esta tarea no tiene un prompt configurado")
+            return
+
+        # Obtener contenido dinámico
+        dynamic_content = self.dynamic_content_text.get(1.0, tk.END).strip()
+
+        # Generar prompt final
+        if "{CONTENIDO_DINAMICO}" in prompt_template:
+            if not dynamic_content:
+                messagebox.showwarning("Advertencia", "Ingresa contenido dinámico para completar el prompt")
+                return
+            final_prompt = prompt_template.replace("{CONTENIDO_DINAMICO}", dynamic_content)
+        else:
+            # Si no hay placeholder, agregar el contenido al final
+            final_prompt = prompt_template
+            if dynamic_content:
+                final_prompt += f"\n\nContenido adicional:\n{dynamic_content}"
+
+        # Mostrar prompt final
+        self.final_prompt_text.config(state=tk.NORMAL)
+        self.final_prompt_text.delete(1.0, tk.END)
+        self.final_prompt_text.insert(1.0, final_prompt)
+        self.final_prompt_text.config(state=tk.DISABLED)
+
+        messagebox.showinfo("Éxito", "Prompt final generado correctamente")
+
+    def copy_final_prompt(self):
+        """Copia el prompt final al portapapeles"""
+        final_prompt = self.final_prompt_text.get(1.0, tk.END).strip()
+
+        if not final_prompt:
+            messagebox.showwarning("Advertencia", "Primero genera el prompt final")
+            return
+
+        # Copiar al portapapeles
+        self.root.clipboard_clear()
+        self.root.clipboard_append(final_prompt)
+        messagebox.showinfo("Éxito", "Prompt copiado al portapapeles")
 
     # ==================== MÉTODOS DEL SERVIDOR HTTP ====================
 
