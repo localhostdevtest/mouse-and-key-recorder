@@ -40,6 +40,11 @@
                         </a>
                     </li>
                     <li class="nav-item">
+                        <a class="nav-link {% if request.endpoint == 'screenshots' %}active{% endif %}" href="{{ url_for('screenshots') }}">
+                            <i class="fas fa-crop-simple me-1"></i>Capturas
+                        </a>
+                    </li>
+                    <li class="nav-item">
                         <a class="nav-link {% if request.endpoint == 'docs' %}active{% endif %}" href="{{ url_for('docs') }}">
                             <i class="fas fa-book me-1"></i>API Postman
                         </a>

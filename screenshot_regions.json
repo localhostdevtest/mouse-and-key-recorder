@@ -1,0 +1,32 @@
+{
+  "captura_1": {
+    "bbox": [
+      1609,
+      66,
+      1880,
+      507
+    ],
+    "created_at": "2026-04-22T14:49:51.709089",
+    "last_capture": "screenshots\\captura_1_20260422_145156.png"
+  },
+  "captura_2": {
+    "bbox": [
+      1393,
+      25,
+      1882,
+      511
+    ],
+    "created_at": "2026-04-22T14:51:36.902023",
+    "last_capture": "screenshots\\screenshot_20260422_145136.png"
+  },
+  "captura_3": {
+    "bbox": [
+      555,
+      0,
+      1033,
+      157
+    ],
+    "created_at": "2026-04-22T14:51:50.069849",
+    "last_capture": "screenshots\\screenshot_20260422_145150.png"
+  }
+}

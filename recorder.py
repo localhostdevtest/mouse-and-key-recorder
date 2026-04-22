@@ -1,5 +1,5 @@
 import tkinter as tk
-from tkinter import ttk, messagebox, filedialog
+from tkinter import ttk, messagebox, filedialog, simpledialog
 import json
 import time
 import threading
@@ -7,6 +7,7 @@ from pynput import mouse, keyboard
 from pynput.mouse import Button, Listener as MouseListener
 from pynput.keyboard import Key, Listener as KeyboardListener
 import os
+import shutil
 from PIL import Image, ImageTk, ImageGrab
 from datetime import datetime
 from flask import Flask, request, jsonify
@@ -84,6 +85,7 @@ class AreaSelector:
 
     def cancel_selection(self, event):
         self.overlay.destroy()
+        self.parent_callback(None, None, None)
 
     def capture_area(self, x1, y1, x2, y2):
         try:
@@ -105,11 +107,12 @@ class AreaSelector:
             filepath = os.path.join(screenshots_dir, filename)
             screenshot.save(filepath)
 
-            # Notificar al parent
-            self.parent_callback(filepath, screenshot)
+            # Notificar al parent con el archivo, la imagen y las coordenadas
+            self.parent_callback(filepath, screenshot, (x1, y1, x2, y2))
 
         except Exception as e:
-            messagebox.showerror("Error", f"Error al capturar screenshot: {str(e)}")
+            print(f"Error al capturar screenshot: {e}")
+            self.parent_callback(None, None, None)
 
 class HTTPServer:
     def __init__(self, recorder_instance):
@@ -278,6 +281,18 @@ class HTTPServer:
             except Exception as e:
                 return jsonify({'error': str(e)}), 500
 
+        @self.app.route('/api/screenshots/web-action', methods=['POST'])
+        def web_action_screenshot():
+            """Desde la web, captura la region activa o abre el selector si no existe"""
+            try:
+                self.recorder.web_capture_or_select_region()
+                return jsonify({
+                    'success': True,
+                    'message': 'Accion de captura iniciada'
+                })
+            except Exception as e:
+                return jsonify({'success': False, 'error': str(e)}), 500
+
     def find_available_port(self, start_port=8080):
         """Encuentra un puerto disponible"""
         for port in range(start_port, start_port + 100):
@@ -311,6 +326,12 @@ class HTTPServer:
         self.server_thread.start()
         self.is_running = True
 
+        try:
+            with open("desktop_http_port.txt", "w", encoding="utf-8") as f:
+                f.write(str(self.port))
+        except Exception as e:
+            print(f"Error guardando puerto HTTP: {e}")
+
         return True, f"Server started on http://localhost:{self.port}"
 
     def stop_server(self):
@@ -336,6 +357,10 @@ class MouseKeyboardRecorder:
         self.recorded_events = []
         self.start_time = None
         self.last_screenshot = None
+        self.screenshot_regions = {}
+        self.screenshot_region_file = "screenshot_regions.json"
+        self.current_area_selector = None
+        self.active_screenshot_region = None
 
         # Sistema de tareas
         self.tasks = {}  # Diccionario de tareas guardadas
@@ -387,6 +412,7 @@ class MouseKeyboardRecorder:
 
         # Cargar tareas guardadas al inicio
         self.load_tasks_from_file()
+        self.load_screenshot_regions_from_file()
 
     def setup_recording_tab(self):
         """Configura la pestaña de grabación"""
@@ -894,21 +920,65 @@ print(response.json())
         main_frame = ttk.Frame(self.screenshot_frame, padding="20")
         main_frame.pack(fill=tk.BOTH, expand=True)
 
-        # Título
+        # Titulo
         title_label = ttk.Label(main_frame, text="Captura de Pantalla",
                                font=("Arial", 16, "bold"))
         title_label.pack(pady=(0, 20))
 
-        # Botón de captura de área
-        self.screenshot_btn = ttk.Button(main_frame, text="📸 Capturar Área",
-                                       command=self.start_area_capture, width=25)
-        self.screenshot_btn.pack(pady=20)
+        controls_frame = ttk.Frame(main_frame)
+        controls_frame.pack(fill=tk.X, pady=(0, 15))
 
-        # Información del último screenshot
+        self.screenshot_btn = ttk.Button(
+            controls_frame,
+            text="Nueva Captura Exacta",
+            command=self.start_area_capture,
+            width=24
+        )
+        self.screenshot_btn.pack(side=tk.LEFT, padx=(0, 10))
+
+        self.capture_region_btn = ttk.Button(
+            controls_frame,
+            text="Capturar Seleccionada",
+            command=self.capture_selected_screenshot_region,
+            width=24
+        )
+        self.capture_region_btn.pack(side=tk.LEFT, padx=(0, 10))
+
+        self.delete_region_btn = ttk.Button(
+            controls_frame,
+            text="Eliminar Region",
+            command=self.delete_selected_screenshot_region,
+            width=20
+        )
+        self.delete_region_btn.pack(side=tk.LEFT)
+
+        self.clear_screenshots_btn = ttk.Button(
+            controls_frame,
+            text="Vaciar Capturas",
+            command=self.clear_screenshots_folder,
+            width=20
+        )
+        self.clear_screenshots_btn.pack(side=tk.LEFT, padx=(10, 0))
+
+        list_frame = ttk.Frame(main_frame)
+        list_frame.pack(fill=tk.BOTH, expand=True, pady=(10, 0))
+
+        ttk.Label(list_frame, text="Regiones guardadas:", font=("Arial", 10, "bold")).pack(anchor=tk.W)
+
+        self.screenshot_regions_listbox = tk.Listbox(list_frame, height=8)
+        self.screenshot_regions_listbox.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, pady=(5, 0))
+
+        scrollbar = ttk.Scrollbar(list_frame, orient=tk.VERTICAL, command=self.screenshot_regions_listbox.yview)
+        scrollbar.pack(side=tk.RIGHT, fill=tk.Y, pady=(5, 0))
+        self.screenshot_regions_listbox.config(yscrollcommand=scrollbar.set)
+
+        self.screenshot_regions_listbox.bind('<Double-Button-1>', lambda event: self.capture_selected_screenshot_region())
+
         self.screenshot_label = ttk.Label(main_frame, text="",
                                         font=("Arial", 10), foreground="blue")
-        self.screenshot_label.pack(pady=10)
+        self.screenshot_label.pack(pady=(15, 0))
 
+        self.refresh_screenshot_regions_list()
     def start_recording(self):
         """Inicia la grabación de eventos"""
         self.is_recording = True
@@ -1233,6 +1303,29 @@ print(response.json())
                 display_text += f" - {task_data['description']}"
             self.tasks_listbox.insert(tk.END, display_text)
 
+    def load_screenshot_regions_from_file(self):
+        """Carga las regiones de captura desde archivo"""
+        regions_file = "screenshot_regions.json"
+        if os.path.exists(regions_file):
+            try:
+                with open(regions_file, 'r', encoding='utf-8') as f:
+                    self.screenshot_regions = json.load(f)
+            except Exception as e:
+                print(f"Error cargando regiones de captura: {e}")
+                self.screenshot_regions = {}
+        else:
+            self.screenshot_regions = {}
+
+    def save_screenshot_regions_to_file(self):
+        """Guarda las regiones de captura en archivo"""
+        regions_file = "screenshot_regions.json"
+        try:
+            with open(regions_file, 'w', encoding='utf-8') as f:
+                json.dump(self.screenshot_regions, f, indent=2, ensure_ascii=False)
+        except Exception as e:
+            print(f"Error guardando regiones de captura: {e}")
+            if hasattr(self, "status_label"):
+                self.status_label.config(text=f"Error guardando regiones de captura: {str(e)}")
     def delete_selected_tasks(self):
         """Elimina las tareas seleccionadas"""
         selected_indices = self.tasks_listbox.curselection()
@@ -1863,25 +1956,155 @@ print(response.json())"""
             messagebox.showerror("Error", f"Error probando la API: {str(e)}")
 
     def start_area_capture(self):
-        """Inicia la captura de área específica"""
-        self.status_label.config(text="📸 Selecciona el área a capturar...")
-        self.root.withdraw()  # Ocultar ventana principal temporalmente
+        """Inicia la definicion de una region exacta para capturas repetibles"""
+        self.status_label.config(text="Selecciona el area exacta a capturar...")
+        self.root.withdraw()
 
-        # Crear selector de área
-        area_selector = AreaSelector(self.on_area_captured)
+        # Crear selector de area
+        self.current_area_selector = AreaSelector(self.on_area_captured)
 
-    def on_area_captured(self, filepath, screenshot_image):
-        """Callback cuando se completa la captura de área"""
-        self.root.deiconify()  # Mostrar ventana principal nuevamente
-        self.last_screenshot = filepath
+    def on_area_captured(self, filepath, screenshot_image, bbox):
+        """Callback cuando se completa la captura inicial y se guarda la region"""
+        self.current_area_selector = None
+        self.root.deiconify()
+        self.root.lift()
+        self.root.focus_force()
 
-        # Actualizar UI
-        self.status_label.config(text="✅ Screenshot capturado")
-        self.screenshot_label.config(text=f"Último screenshot: {os.path.basename(filepath)}")
+        if filepath is None or bbox is None:
+            self.status_label.config(text="Captura cancelada")
+            self.screenshot_label.config(text="")
+            return
 
-        # Mostrar mensaje de éxito
-        messagebox.showinfo("Éxito", f"Screenshot guardado en:\n{filepath}")
+        next_index = len(self.screenshot_regions) + 1
+        region_name = f"captura_{next_index}"
+        while region_name in self.screenshot_regions:
+            next_index += 1
+            region_name = f"captura_{next_index}"
 
+        self.screenshot_regions[region_name] = {
+            'bbox': list(bbox),
+            'created_at': datetime.now().isoformat(),
+            'last_capture': filepath
+        }
+        self.active_screenshot_region = region_name
+        self.save_screenshot_regions_to_file()
+        self.refresh_screenshot_regions_list()
+
+        self.status_label.config(text=f"Region guardada: {region_name}")
+        self.screenshot_label.config(text=f"Ultima captura: {os.path.basename(filepath)}")
+
+    def refresh_screenshot_regions_list(self):
+        """Actualiza la lista de regiones guardadas"""
+        if not hasattr(self, "screenshot_regions_listbox"):
+            return
+
+        self.screenshot_regions_listbox.delete(0, tk.END)
+        for region_name, region_data in self.screenshot_regions.items():
+            bbox = region_data.get('bbox', [0, 0, 0, 0])
+            label = f"{region_name} [{bbox[0]}, {bbox[1]} -> {bbox[2]}, {bbox[3]}]"
+            self.screenshot_regions_listbox.insert(tk.END, label)
+
+    def get_selected_screenshot_region_name(self):
+        """Obtiene el nombre de la region seleccionada"""
+        if not hasattr(self, "screenshot_regions_listbox"):
+            return None
+
+        selection = self.screenshot_regions_listbox.curselection()
+        if not selection:
+            return None
+
+        selected_text = self.screenshot_regions_listbox.get(selection[0])
+        return selected_text.split(" [", 1)[0]
+
+    def capture_selected_screenshot_region(self):
+        """Captura nuevamente la region seleccionada"""
+        region_name = self.get_selected_screenshot_region_name()
+        if not region_name:
+            self.status_label.config(text="Selecciona una region para capturar")
+            return
+
+        self.capture_screenshot_region(region_name)
+
+    def capture_screenshot_region(self, region_name):
+        """Captura una region guardada por nombre"""
+        region_data = self.screenshot_regions.get(region_name)
+        if not region_data:
+            self.status_label.config(text=f"La region '{region_name}' no existe")
+            return
+
+        try:
+            bbox = tuple(region_data['bbox'])
+            screenshot = ImageGrab.grab(bbox=bbox)
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            safe_name = "".join(c if c.isalnum() or c in ("_", "-") else "_" for c in region_name.lower())
+            filename = f"{safe_name}_{timestamp}.png"
+
+            screenshots_dir = "screenshots"
+            if not os.path.exists(screenshots_dir):
+                os.makedirs(screenshots_dir)
+
+            filepath = os.path.join(screenshots_dir, filename)
+            screenshot.save(filepath)
+
+            region_data['last_capture'] = filepath
+            self.save_screenshot_regions_to_file()
+            self.last_screenshot = filepath
+            self.active_screenshot_region = region_name
+            self.screenshot_label.config(text=f"Ultima captura: {os.path.basename(filepath)}")
+            self.status_label.config(text=f"Captura realizada: {region_name}")
+        except Exception as e:
+            self.status_label.config(text=f"Error al capturar region: {str(e)}")
+            print(f"Error al capturar region: {e}")
+
+    def delete_selected_screenshot_region(self):
+        """Elimina la region seleccionada"""
+        region_name = self.get_selected_screenshot_region_name()
+        if not region_name:
+            self.status_label.config(text="Selecciona una region para eliminar")
+            return
+
+        if region_name in self.screenshot_regions:
+            del self.screenshot_regions[region_name]
+            if self.active_screenshot_region == region_name:
+                self.active_screenshot_region = None
+            self.save_screenshot_regions_to_file()
+            self.refresh_screenshot_regions_list()
+            self.status_label.config(text=f"Region eliminada: {region_name}")
+
+    def clear_screenshots_folder(self):
+        """Borra todos los archivos de la carpeta screenshots"""
+        screenshots_dir = "screenshots"
+        deleted_count = 0
+
+        try:
+            if os.path.exists(screenshots_dir):
+                for entry in os.listdir(screenshots_dir):
+                    entry_path = os.path.join(screenshots_dir, entry)
+                    if os.path.isfile(entry_path) or os.path.islink(entry_path):
+                        os.remove(entry_path)
+                        deleted_count += 1
+                    elif os.path.isdir(entry_path):
+                        shutil.rmtree(entry_path)
+                        deleted_count += 1
+            else:
+                os.makedirs(screenshots_dir)
+
+            self.last_screenshot = None
+            self.screenshot_label.config(text="")
+            self.status_label.config(text=f"Carpeta screenshots vaciada ({deleted_count} elemento(s))")
+        except Exception as e:
+            self.status_label.config(text=f"Error vaciando screenshots: {str(e)}")
+
+    def web_capture_or_select_region(self):
+        """Si existe una region activa, la captura; si no, abre el selector nativo"""
+        if self.screenshot_regions:
+            region_name = self.active_screenshot_region
+            if not region_name or region_name not in self.screenshot_regions:
+                region_name = next(iter(self.screenshot_regions))
+            self.root.after(0, lambda rn=region_name: self.capture_screenshot_region(rn))
+            return
+
+        self.root.after(0, self.start_area_capture)
     def play_recording(self):
         """Reproduce la grabación"""
         if not self.recorded_events:

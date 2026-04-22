@@ -3,12 +3,19 @@ import json
 import time
 import threading
 import os
+import shutil
+import sys
+import subprocess
+import base64
+import re
 from datetime import datetime
 from pynput import mouse, keyboard
 from pynput.mouse import Button, Listener as MouseListener
 from pynput.keyboard import Key, Listener as KeyboardListener
 from PIL import Image, ImageGrab
 import tkinter as tk
+from urllib import request as urllib_request
+from urllib import error as urllib_error
 
 class RecorderCore:
     def __init__(self):
@@ -410,6 +417,93 @@ def prompts():
     """Página de gestión de prompts"""
     return render_template('prompts.html', tasks=recorder.tasks)
 
+@app.route('/screenshots')
+def screenshots():
+    """Página de gestión de capturas exactas"""
+    return render_template('screenshots.html')
+
+def get_desktop_http_port():
+    """Intenta leer el puerto del servidor HTTP de la app de escritorio"""
+    port_file = 'desktop_http_port.txt'
+    if os.path.exists(port_file):
+        try:
+            with open(port_file, 'r', encoding='utf-8') as f:
+                return int(f.read().strip())
+        except Exception:
+            pass
+
+    for port in range(8080, 8181):
+        try:
+            req = urllib_request.Request(f'http://localhost:{port}/api/status', method='GET')
+            with urllib_request.urlopen(req, timeout=0.25) as response:
+                data = json.loads(response.read().decode('utf-8'))
+                if data.get('status') == 'running':
+                    return port
+        except Exception:
+            continue
+    return None
+
+def launch_desktop_app():
+    """Lanza la app de escritorio si no esta ejecutandose"""
+    recorder_path = os.path.join(os.path.dirname(__file__), 'recorder.py')
+    if not os.path.exists(recorder_path):
+        return False, 'No encontre recorder.py'
+
+    try:
+        subprocess.Popen([sys.executable, recorder_path], cwd=os.path.dirname(__file__))
+        return True, 'App de escritorio iniciada'
+    except Exception as e:
+        return False, str(e)
+
+def wait_for_desktop_port(timeout_seconds=12):
+    """Espera a que la app de escritorio publique su puerto HTTP"""
+    deadline = time.time() + timeout_seconds
+    while time.time() < deadline:
+        port = get_desktop_http_port()
+        if port:
+            return port
+        time.sleep(0.4)
+    return None
+
+@app.route('/api/desktop/start-area-capture', methods=['POST'])
+def desktop_start_area_capture():
+    """Pide a la app de escritorio que abra el selector de area"""
+    port = get_desktop_http_port()
+    if not port:
+        launched, launch_message = launch_desktop_app()
+        if not launched:
+            return jsonify({
+                'success': False,
+                'message': f'No encontre la app de escritorio y tampoco la pude abrir: {launch_message}'
+            }), 503
+
+        port = wait_for_desktop_port()
+
+    if not port:
+        return jsonify({
+            'success': False,
+            'message': 'No pude encontrar el puerto de la app de escritorio'
+        }), 503
+
+    try:
+        req = urllib_request.Request(
+            f'http://localhost:{port}/api/screenshots/web-action',
+            method='POST'
+        )
+        with urllib_request.urlopen(req, timeout=2) as response:
+            data = json.loads(response.read().decode('utf-8'))
+            return jsonify(data)
+    except urllib_error.URLError as e:
+        return jsonify({
+            'success': False,
+            'message': f'No pude conectar con la app de escritorio: {e}'
+        }), 502
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': str(e)
+        }), 500
+
 @app.route('/api/recording/start', methods=['POST'])
 def start_recording():
     """API para iniciar grabación"""
@@ -541,6 +635,68 @@ def list_everything():
         'sequences': recorder.sequences,
         'automation_count': len(recorder.tasks),
         'sequence_count': len(recorder.sequences)
+    })
+
+@app.route('/api/screenshots/save', methods=['POST'])
+def save_screenshot():
+    """API para guardar una captura exacta enviada desde la web"""
+    if 'image' not in request.files:
+        return jsonify({'success': False, 'message': 'La imagen es requerida'}), 400
+
+    image_file = request.files['image']
+    region_name = request.form.get('region_name', 'captura').strip()
+
+    if not image_file.filename:
+        return jsonify({'success': False, 'message': 'Archivo de imagen invalido'}), 400
+
+    safe_name = re.sub(r'[^a-zA-Z0-9_-]+', '_', region_name).strip('_') or 'captura'
+    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+    filename = f'{safe_name}_{timestamp}.png'
+    screenshots_dir = 'screenshots'
+    os.makedirs(screenshots_dir, exist_ok=True)
+    filepath = os.path.join(screenshots_dir, filename)
+
+    try:
+        image_file.save(filepath)
+        return jsonify({
+            'success': True,
+            'message': 'Captura guardada correctamente',
+            'file_path': filepath,
+            'filename': filename
+        })
+    except Exception as e:
+        return jsonify({'success': False, 'message': f'Error guardando la captura: {e}'}), 500
+
+@app.route('/api/screenshots/clear', methods=['POST'])
+def clear_screenshots():
+    """Borra todo el contenido de la carpeta de capturas"""
+    screenshots_dir = 'screenshots'
+    deleted_items = 0
+
+    if os.path.exists(screenshots_dir):
+        try:
+            for entry in os.listdir(screenshots_dir):
+                entry_path = os.path.join(screenshots_dir, entry)
+                if os.path.isfile(entry_path) or os.path.islink(entry_path):
+                    os.remove(entry_path)
+                    deleted_items += 1
+                elif os.path.isdir(entry_path):
+                    shutil.rmtree(entry_path)
+                    deleted_items += 1
+
+            return jsonify({
+                'success': True,
+                'message': 'Carpeta de capturas vaciada correctamente',
+                'deleted_items': deleted_items
+            })
+        except Exception as e:
+            return jsonify({'success': False, 'message': f'Error vaciando la carpeta: {e}'}), 500
+
+    os.makedirs(screenshots_dir, exist_ok=True)
+    return jsonify({
+        'success': True,
+        'message': 'La carpeta de capturas ya estaba vacia',
+        'deleted_items': 0
     })
 
 @app.route('/api/tasks/save', methods=['POST'])
