@@ -1100,6 +1100,9 @@ curl -X POST http://localhost:8080/api/execute/task -H "Content-Type: applicatio
         items = seq.split()
         if hasattr(self, 'matrix_ejecutar_btn'): self.matrix_ejecutar_btn.state(['disabled'])
         
+        self.matrix_sequence_var.set("")
+        if hasattr(self, 'matrix_quick_var'): self.matrix_quick_var.set("")
+        
         def task():
             for item in items:
                 if item in self.tasks:
