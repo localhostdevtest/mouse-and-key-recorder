@@ -1012,16 +1012,6 @@ curl -X POST http://localhost:8080/api/execute/task -H "Content-Type: applicatio
         inst_label = ttk.Label(main_frame, text="1. Usa 'Capturar (3s)' para guardar las coordenadas de cada elemento.\n2. Pega una secuencia como '1x2 1x3 3x3' y haz click en Ejecutar.", justify=tk.CENTER)
         inst_label.pack(pady=5)
 
-        # Click Inicial Frame
-        init_frame = ttk.LabelFrame(main_frame, text="Configuración Adicional", padding="10")
-        init_frame.pack(fill=tk.X, padx=20, pady=(0, 5))
-        
-        self.matrix_init_click_var = tk.StringVar()
-        ttk.Label(init_frame, text="Click Inicial (antes de secuencia):").pack(side=tk.LEFT, padx=(0, 5))
-        ttk.Entry(init_frame, textvariable=self.matrix_init_click_var, width=15, justify="center").pack(side=tk.LEFT, padx=5)
-        ttk.Button(init_frame, text="Capturar (3s)", command=lambda: self.capture_matrix_coords("Click Inicial", self.matrix_init_click_var)).pack(side=tk.LEFT, padx=5)
-        self.matrix_entries["init_click"] = self.matrix_init_click_var
-
         # Matriz Frame
         matrix_frame = ttk.LabelFrame(main_frame, text="Elementos de la Matriz", padding="10")
         matrix_frame.pack(fill=tk.BOTH, expand=True, padx=20, pady=5)
@@ -1111,24 +1101,15 @@ curl -X POST http://localhost:8080/api/execute/task -H "Content-Type: applicatio
         if hasattr(self, 'matrix_ejecutar_btn'): self.matrix_ejecutar_btn.state(['disabled'])
         
         def task():
-            if "init_click" in self.matrix_entries:
-                init_val = self.matrix_entries["init_click"].get()
-                if init_val and "," in init_val:
-                    try:
-                        ix, iy = map(int, init_val.replace(" ", "").split(","))
-                        status_text = "ESTADO: Ejecutando Click Inicial..."
-                        self.matrix_status_var.set(status_text)
-                        if hasattr(self, 'matrix_quick_status'): self.matrix_quick_status.config(text=status_text)
-                        self.root.update()
-                        self.mouse_controller.position = (ix, iy)
-                        time.sleep(0.2)
-                        self.mouse_controller.click(Button.left)
-                        time.sleep(0.5)
-                    except ValueError:
-                        pass
-        
             for item in items:
-                if item in self.matrix_entries:
+                if item in self.tasks:
+                    status_text = f"ESTADO: Ejecutando Tarea '{item}'..."
+                    self.matrix_status_var.set(status_text)
+                    if hasattr(self, 'matrix_quick_status'): self.matrix_quick_status.config(text=status_text)
+                    self.root.update()
+                    self._execute_single_task(item)
+                    time.sleep(0.5)
+                elif item in self.matrix_entries:
                     val = self.matrix_entries[item].get()
                     if val and "," in val:
                         try:
