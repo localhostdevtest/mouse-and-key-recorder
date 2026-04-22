@@ -448,6 +448,9 @@ class MouseKeyboardRecorder:
         self.load_tasks_from_file()
         self.load_screenshot_regions_from_file()
         self.load_matrix_config()
+        
+        # Sincronizar UI
+        self.refresh_triggers_list()
         self.refresh_prompt_tasks()
         self.refresh_screenshot_regions_list()
         self.refresh_main_panel()
@@ -2138,6 +2141,7 @@ curl -X POST http://localhost:8080/api/execute/task -H "Content-Type: applicatio
         self.trigger_task_combo.grid(row=1, column=1, padx=5, pady=5)
 
         ttk.Button(form_frame, text="Guardar Disparador", command=self.add_text_trigger).grid(row=1, column=2, padx=5, pady=5)
+        ttk.Button(form_frame, text="Actualizar Lista", command=self.refresh_triggers_list).grid(row=1, column=3, padx=5, pady=5)
 
         # Tabla de disparadores
         list_frame = ttk.LabelFrame(main_frame, text="Disparadores Configurados", padding="10")
@@ -2173,13 +2177,19 @@ curl -X POST http://localhost:8080/api/execute/task -H "Content-Type: applicatio
 
     def refresh_triggers_list(self):
         """Actualiza la lista de disparadores en la UI"""
+        if not hasattr(self, 'triggers_list_container'):
+            return
+
         for widget in self.triggers_list_container.winfo_children():
             widget.destroy()
 
         # Actualizar combo de tareas
-        task_names = list(self.tasks.keys())
+        task_names = sorted(list(self.tasks.keys()))
         if hasattr(self, 'trigger_task_combo'):
             self.trigger_task_combo['values'] = task_names
+            if task_names and not self.trigger_task_var.get():
+                # Opcional: seleccionar la primera tarea si no hay nada seleccionado
+                pass
 
         if not self.text_triggers:
             ttk.Label(self.triggers_list_container, text="No hay disparadores configurados.").pack(pady=10)
