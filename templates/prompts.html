@@ -1,0 +1,967 @@
+{% extends "base.html" %}
+
+{% block title %}Prompts - Grabador de Tareas{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2>
+        <i class="fas fa-comments me-2"></i>
+        Teclado de Prompts
+    </h2>
+    <a href="{{ url_for('tasks') }}" class="btn btn-outline-primary">
+        <i class="fas fa-tasks me-1"></i>
+        Gestionar Tareas
+    </a>
+</div>
+
+<!-- Información y Estadísticas -->
+<!-- Creador rapido de prompts -->
+<div class="card mb-4">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <h5 class="mb-0">
+            <i class="fas fa-pen-nib me-2"></i>
+            Creador de Prompts
+        </h5>
+        <small class="text-muted">Titulo, prompt y texto extra opcional</small>
+    </div>
+    <div class="card-body">
+        <div class="row g-3">
+            <div class="col-md-4">
+                <label for="quick-prompt-title" class="form-label">Titulo</label>
+                <input type="text" class="form-control" id="quick-prompt-title" placeholder="Ej: Analisis de formulario">
+            </div>
+            <div class="col-md-8">
+                <label for="quick-prompt-text" class="form-label">Prompt</label>
+                <textarea class="form-control" id="quick-prompt-text" rows="4" placeholder="Escribe aqui el prompt que quieras copiar..."></textarea>
+            </div>
+            <div class="col-12">
+                <label for="quick-prompt-extra" class="form-label">Texto extra al copiar</label>
+                <input type="text" class="form-control" id="quick-prompt-extra" placeholder="Opcional: agrega una frase que se concatene al copiar">
+            </div>
+        </div>
+        <div class="mt-3 d-flex flex-wrap gap-2">
+            <button type="button" class="btn btn-primary" onclick="saveQuickPrompt()">
+                <i class="fas fa-plus me-1"></i>
+                Guardar prompt
+            </button>
+            <button type="button" class="btn btn-success" onclick="copyQuickPromptFromForm()">
+                <i class="fas fa-copy me-1"></i>
+                Copiar prompt
+            </button>
+            <button type="button" class="btn btn-outline-secondary" onclick="clearQuickPromptForm()">
+                <i class="fas fa-broom me-1"></i>
+                Limpiar
+            </button>
+        </div>
+    </div>
+</div>
+
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="card stats-card text-center">
+            <div class="card-body">
+                <h3 class="stats-number mb-1">{{ tasks|length }}</h3>
+                <p class="stats-label mb-0">Total Tareas</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card stats-card text-center">
+            <div class="card-body">
+                <h3 class="stats-number mb-1">
+                    {{ tasks.values() | selectattr('prompt_template') | list | length }}
+                </h3>
+                <p class="stats-label mb-0">Con Prompts</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card stats-card text-center">
+            <div class="card-body">
+                <h3 class="stats-number mb-1" id="prompts-generated">0</h3>
+                <p class="stats-label mb-0">Prompts Generados</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card stats-card text-center">
+            <div class="card-body">
+                <h3 class="stats-number mb-1" id="prompts-copied">0</h3>
+                <p class="stats-label mb-0">Copiados</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Prompts guardados -->
+<div class="card mb-4">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <h5 class="mb-0">
+            <i class="fas fa-layer-group me-2"></i>
+            Prompts Guardados
+        </h5>
+        <small class="text-muted">Copiar solo el prompt o con texto extra</small>
+    </div>
+    <div class="card-body">
+        <div id="saved-prompts-empty" class="text-muted small py-2">
+            Todavia no guardaste prompts. Usa el creador de arriba para agregar tu primero.
+        </div>
+        <div class="row g-3" id="saved-prompts-list"></div>
+    </div>
+</div>
+
+<div class="row">
+    <!-- Panel Izquierdo: Lista de Tareas -->
+    <div class="col-lg-4">
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-list me-2"></i>
+                    Tareas Disponibles
+                </h5>
+            </div>
+            <div class="card-body p-0">
+                <!-- Búsqueda -->
+                <div class="p-3 border-bottom">
+                    <input type="text" class="form-control" id="search-prompt-tasks"
+                           placeholder="Buscar tareas...">
+                </div>
+
+                <!-- Lista de Tareas -->
+                <div class="list-group list-group-flush" id="prompt-tasks-list">
+                    {% for task_name, task in tasks.items() %}
+                    <div class="list-group-item list-group-item-action task-prompt-item"
+                         data-task-name="{{ task_name }}"
+                         onclick="selectTask('{{ task_name }}')">
+                        <div class="d-flex justify-content-between align-items-start">
+                            <div class="flex-grow-1">
+                                <h6 class="mb-1">
+                                    <i class="fas fa-cog me-2"></i>
+                                    {{ task.name }}
+                                </h6>
+                                {% if task.description %}
+                                <p class="mb-1 text-muted small">{{ task.description }}</p>
+                                {% endif %}
+                                <small class="text-muted">{{ task.event_count }} eventos</small>
+                            </div>
+                            <div class="ms-2">
+                                {% if task.prompt_template %}
+                                    <span class="badge badge-prompt">
+                                        <i class="fas fa-comments"></i>
+                                    </span>
+                                {% else %}
+                                    <span class="badge badge-no-prompt">
+                                        <i class="fas fa-plus"></i>
+                                    </span>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Acciones Rápidas -->
+        <div class="card">
+            <div class="card-header">
+                <h6 class="mb-0">
+                    <i class="fas fa-bolt me-2"></i>
+                    Acciones Rápidas
+                </h6>
+            </div>
+            <div class="card-body">
+                <div class="d-grid gap-2">
+                    <button class="btn btn-outline-primary btn-sm" onclick="showPromptHelp()">
+                        <i class="fas fa-question-circle me-1"></i>
+                        Ayuda con Prompts
+                    </button>
+                    <button class="btn btn-outline-success btn-sm" onclick="showExamples()">
+                        <i class="fas fa-lightbulb me-1"></i>
+                        Ver Ejemplos
+                    </button>
+                    <button class="btn btn-outline-info btn-sm" onclick="clearAll()">
+                        <i class="fas fa-broom me-1"></i>
+                        Limpiar Todo
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Panel Derecho: Generador de Prompts -->
+    <div class="col-lg-8">
+        <!-- Información de Tarea Seleccionada -->
+        <div class="card mb-4" id="selected-task-info" style="display: none;">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-cog me-2"></i>
+                    <span id="selected-task-name">Ninguna tarea seleccionada</span>
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-8">
+                        <p class="mb-2" id="selected-task-description">Selecciona una tarea de la lista para comenzar</p>
+                        <small class="text-muted" id="selected-task-meta"></small>
+                    </div>
+                    <div class="col-md-4 text-end">
+                        <button class="btn btn-outline-primary btn-sm" id="edit-prompt-btn"
+                                onclick="editPromptTemplate()" style="display: none;">
+                            <i class="fas fa-edit me-1"></i>
+                            Editar Prompt
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Plantilla del Prompt -->
+        <div class="card mb-4" id="prompt-template-card" style="display: none;">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-file-alt me-2"></i>
+                    Plantilla del Prompt
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="prompt-template-display" id="prompt-template-display">
+                    <!-- Se llenará dinámicamente -->
+                </div>
+            </div>
+        </div>
+
+        <!-- Contenido Dinámico -->
+        <div class="card mb-4" id="dynamic-content-card" style="display: none;">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-code me-2"></i>
+                    Contenido Dinámico
+                </h5>
+            </div>
+            <div class="card-body">
+                <label for="dynamic-content" class="form-label">
+                    <i class="fas fa-paste me-1"></i>
+                    Pega aquí el contenido variable (HTML, JSON, texto, etc.)
+                </label>
+                <textarea class="form-control dynamic-content-area" id="dynamic-content" rows="6"
+                          placeholder="Ejemplo:
+<input type='submit' name='ctl00$PlaceContent$Ingresar' value='INGRESAR' id='Ingresar' class='btn btn-default' aria-label='Ingresar'>
+
+O cualquier otro contenido que quieras analizar..."></textarea>
+
+                <div class="mt-3">
+                    <button class="btn btn-primary" onclick="generateFinalPrompt()">
+                        <i class="fas fa-magic me-1"></i>
+                        Generar Prompt Final
+                    </button>
+                    <button class="btn btn-outline-secondary ms-2" onclick="clearDynamicContent()">
+                        <i class="fas fa-times me-1"></i>
+                        Limpiar
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Prompt Final -->
+        <div class="card" id="final-prompt-card" style="display: none;">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">
+                    <i class="fas fa-check-circle me-2 text-success"></i>
+                    Prompt Final Generado
+                </h5>
+                <button class="btn btn-success btn-sm" onclick="copyToClipboard()">
+                    <i class="fas fa-copy me-1"></i>
+                    Copiar al Portapapeles
+                </button>
+            </div>
+            <div class="card-body">
+                <div class="final-prompt-area" id="final-prompt-display">
+                    <!-- Se llenará dinámicamente -->
+                </div>
+
+                <div class="mt-3 d-flex justify-content-between align-items-center">
+                    <small class="text-muted">
+                        <i class="fas fa-info-circle me-1"></i>
+                        Prompt listo para usar con IA
+                    </small>
+                    <div>
+                        <button class="btn btn-outline-primary btn-sm me-2" onclick="previewPrompt()">
+                            <i class="fas fa-eye me-1"></i>
+                            Vista Previa
+                        </button>
+                        <button class="btn btn-outline-success btn-sm" onclick="savePromptHistory()">
+                            <i class="fas fa-bookmark me-1"></i>
+                            Guardar en Historial
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Estado Inicial -->
+        <div class="card" id="initial-state">
+            <div class="card-body text-center py-5">
+                <i class="fas fa-mouse-pointer fa-3x text-muted mb-3"></i>
+                <h4 class="text-muted">Selecciona una Tarea</h4>
+                <p class="text-muted mb-4">
+                    Elige una tarea de la lista para comenzar a generar prompts dinámicos
+                </p>
+                <div class="row justify-content-center">
+                    <div class="col-md-8">
+                        <div class="alert alert-info">
+                            <h6><i class="fas fa-lightbulb me-2"></i>¿Cómo funciona?</h6>
+                            <ol class="mb-0 text-start">
+                                <li>Selecciona una tarea que tenga prompt configurado</li>
+                                <li>Pega el contenido dinámico (HTML, JSON, etc.)</li>
+                                <li>Genera el prompt final combinado</li>
+                                <li>Copia directamente al portapapeles</li>
+                            </ol>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal de Edición de Prompt -->
+<div class="modal fade" id="editPromptModal" tabindex="-1">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-edit me-2"></i>
+                    Editor de Plantilla de Prompt
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <label for="prompt-editor" class="form-label">
+                            <i class="fas fa-code me-1"></i>
+                            Plantilla del Prompt
+                        </label>
+                        <textarea class="form-control prompt-textarea" id="prompt-editor" rows="15"
+                                  placeholder="Escribe tu plantilla aquí..."></textarea>
+                        <div class="form-text">
+                            <i class="fas fa-info-circle me-1"></i>
+                            Usa <code>{CONTENIDO_DINAMICO}</code> donde quieras insertar contenido variable
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">
+                            <i class="fas fa-eye me-1"></i>
+                            Vista Previa
+                        </label>
+                        <div class="border rounded p-3" style="height: 400px; overflow-y: auto; background-color: #f8f9fa;">
+                            <div id="prompt-preview">
+                                <em class="text-muted">La vista previa aparecerá aquí...</em>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-primary" onclick="savePromptTemplate()">
+                    <i class="fas fa-save me-1"></i>
+                    Guardar Plantilla
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal de Vista Previa -->
+<div class="modal fade" id="previewModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-eye me-2"></i>
+                    Vista Previa del Prompt Final
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="border rounded p-3" style="max-height: 500px; overflow-y: auto; background-color: #f8f9fa; font-family: monospace;">
+                    <div id="preview-content"></div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-success" onclick="copyFromPreview()">
+                    <i class="fas fa-copy me-1"></i>
+                    Copiar al Portapapeles
+                </button>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let selectedTaskName = null;
+let selectedTaskData = null;
+let currentPromptTemplate = '';
+let finalPromptContent = '';
+let promptsGenerated = 0;
+let promptsCopied = 0;
+let quickPrompts = [];
+const QUICK_PROMPTS_STORAGE_KEY = 'mouse-and-key-recorder.quick-prompts';
+
+// Datos de tareas (pasados desde el servidor)
+const tasksData = {{ tasks | tojson }};
+
+document.addEventListener('DOMContentLoaded', function() {
+    // Event listeners
+    document.getElementById('search-prompt-tasks').addEventListener('input', filterPromptTasks);
+    document.getElementById('dynamic-content').addEventListener('input', updateGenerateButton);
+    document.getElementById('prompt-editor').addEventListener('input', updatePromptPreview);
+
+    // Inicializar
+    loadQuickPrompts();
+    renderQuickPrompts();
+    updateStats();
+});
+
+function loadQuickPrompts() {
+    try {
+        const storedPrompts = localStorage.getItem(QUICK_PROMPTS_STORAGE_KEY);
+        quickPrompts = storedPrompts ? JSON.parse(storedPrompts) : [];
+
+        if (!Array.isArray(quickPrompts)) {
+            quickPrompts = [];
+        }
+    } catch (error) {
+        console.error('Error cargando prompts guardados:', error);
+        quickPrompts = [];
+    }
+}
+
+function saveQuickPrompts() {
+    localStorage.setItem(QUICK_PROMPTS_STORAGE_KEY, JSON.stringify(quickPrompts));
+}
+
+function getQuickPromptFormValues() {
+    return {
+        title: document.getElementById('quick-prompt-title').value.trim(),
+        prompt: document.getElementById('quick-prompt-text').value.trim(),
+        extra: document.getElementById('quick-prompt-extra').value.trim()
+    };
+}
+
+function composePromptText(promptText, extraText) {
+    if (!extraText) {
+        return promptText;
+    }
+
+    return `${promptText}\n\n${extraText}`;
+}
+
+async function copyPlainText(text) {
+    if (!text) {
+        throw new Error('No hay texto para copiar');
+    }
+
+    if (navigator.clipboard && window.isSecureContext) {
+        await navigator.clipboard.writeText(text);
+        return;
+    }
+
+    const fallbackInput = document.createElement('textarea');
+    fallbackInput.value = text;
+    fallbackInput.setAttribute('readonly', '');
+    fallbackInput.style.position = 'fixed';
+    fallbackInput.style.left = '-9999px';
+    document.body.appendChild(fallbackInput);
+    fallbackInput.select();
+
+    const copied = document.execCommand('copy');
+    document.body.removeChild(fallbackInput);
+
+    if (!copied) {
+        throw new Error('No se pudo copiar el texto');
+    }
+}
+
+function renderQuickPrompts() {
+    const list = document.getElementById('saved-prompts-list');
+    const emptyState = document.getElementById('saved-prompts-empty');
+
+    if (!list || !emptyState) {
+        return;
+    }
+
+    if (!quickPrompts.length) {
+        list.innerHTML = '';
+        emptyState.style.display = 'block';
+        return;
+    }
+
+    emptyState.style.display = 'none';
+    list.innerHTML = quickPrompts.map((item, index) => `
+        <div class="col-md-6 col-xl-4">
+            <div class="card h-100">
+                <div class="card-body d-flex flex-column">
+                    <div class="d-flex justify-content-between align-items-start mb-2">
+                        <h6 class="card-title mb-0">${escapeHtml(item.title)}</h6>
+                        <span class="badge bg-secondary">#${index + 1}</span>
+                    </div>
+                    <p class="card-text text-muted small mb-2" style="white-space: pre-wrap;">${escapeHtml(item.prompt)}</p>
+                    ${item.extra ? `<div class="small text-muted border-top pt-2 mt-auto"><strong>Extra:</strong> ${escapeHtml(item.extra)}</div>` : ''}
+                    <label class="form-label small mt-3 mb-1" for="saved-prompt-extra-${item.id}">Texto extra al copiar</label>
+                    <input type="text" class="form-control form-control-sm" id="saved-prompt-extra-${item.id}"
+                           placeholder="Opcional: agregar texto antes de copiar">
+                </div>
+                <div class="card-footer bg-transparent d-flex gap-2">
+                    <button class="btn btn-success btn-sm flex-fill" onclick="copySavedPrompt('${item.id}')">
+                        <i class="fas fa-copy me-1"></i>
+                        Copiar
+                    </button>
+                    <button class="btn btn-outline-danger btn-sm" onclick="deleteSavedPrompt('${item.id}')">
+                        <i class="fas fa-trash me-1"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+    `).join('');
+}
+
+async function saveQuickPrompt() {
+    const values = getQuickPromptFormValues();
+
+    if (!values.title) {
+        showAlert('warning', 'Escribe un titulo para el prompt');
+        return;
+    }
+
+    if (!values.prompt) {
+        showAlert('warning', 'Escribe el prompt antes de guardarlo');
+        return;
+    }
+
+    quickPrompts.unshift({
+        id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        title: values.title,
+        prompt: values.prompt,
+        extra: values.extra
+    });
+
+    saveQuickPrompts();
+    renderQuickPrompts();
+    clearQuickPromptForm();
+    showAlert('success', 'Prompt guardado correctamente');
+}
+
+async function copyQuickPromptFromForm() {
+    const values = getQuickPromptFormValues();
+
+    if (!values.prompt) {
+        showAlert('warning', 'Escribe un prompt para copiar');
+        return;
+    }
+
+    try {
+        await copyPlainText(composePromptText(values.prompt, values.extra));
+        showAlert('success', 'Prompt copiado al portapapeles');
+    } catch (error) {
+        showAlert('danger', 'Error al copiar al portapapeles: ' + error.message);
+    }
+}
+
+async function copySavedPrompt(promptId) {
+    const promptItem = quickPrompts.find((item) => item.id === promptId);
+    if (!promptItem) {
+        showAlert('warning', 'No se encontro el prompt');
+        return;
+    }
+
+    try {
+        const extraInput = document.getElementById(`saved-prompt-extra-${promptId}`);
+        const runtimeExtra = extraInput ? extraInput.value.trim() : '';
+        const combinedExtra = [promptItem.extra, runtimeExtra].filter(Boolean).join('\n\n');
+
+        await copyPlainText(composePromptText(promptItem.prompt, combinedExtra));
+        showAlert('success', `Prompt "${promptItem.title}" copiado al portapapeles`);
+    } catch (error) {
+        showAlert('danger', 'Error al copiar al portapapeles: ' + error.message);
+    }
+}
+
+function deleteSavedPrompt(promptId) {
+    const promptItem = quickPrompts.find((item) => item.id === promptId);
+    if (!promptItem) {
+        return;
+    }
+
+    quickPrompts = quickPrompts.filter((item) => item.id !== promptId);
+    saveQuickPrompts();
+    renderQuickPrompts();
+    showAlert('info', `Prompt "${promptItem.title}" eliminado`);
+}
+
+function clearQuickPromptForm() {
+    document.getElementById('quick-prompt-title').value = '';
+    document.getElementById('quick-prompt-text').value = '';
+    document.getElementById('quick-prompt-extra').value = '';
+}
+
+function selectTask(taskName) {
+    selectedTaskName = taskName;
+    selectedTaskData = tasksData[taskName];
+
+    if (!selectedTaskData) {
+        showAlert('danger', 'Error: No se pudieron cargar los datos de la tarea');
+        return;
+    }
+
+    // Actualizar UI
+    updateSelectedTaskInfo();
+    updatePromptTemplate();
+
+    // Mostrar/ocultar elementos
+    document.getElementById('initial-state').style.display = 'none';
+    document.getElementById('selected-task-info').style.display = 'block';
+
+    // Highlight en la lista
+    document.querySelectorAll('.task-prompt-item').forEach(item => {
+        item.classList.remove('active');
+    });
+    document.querySelector(`[data-task-name="${taskName}"]`).classList.add('active');
+}
+
+function updateSelectedTaskInfo() {
+    document.getElementById('selected-task-name').textContent = selectedTaskData.name;
+    document.getElementById('selected-task-description').textContent =
+        selectedTaskData.description || 'Sin descripción';
+    document.getElementById('selected-task-meta').textContent =
+        `${selectedTaskData.event_count} eventos • Creada: ${selectedTaskData.created_at.substring(0, 19).replace('T', ' ')}`;
+
+    // Mostrar botón de editar si tiene prompt
+    const editBtn = document.getElementById('edit-prompt-btn');
+    if (selectedTaskData.prompt_template) {
+        editBtn.style.display = 'inline-block';
+    } else {
+        editBtn.style.display = 'none';
+    }
+}
+
+function updatePromptTemplate() {
+    currentPromptTemplate = selectedTaskData.prompt_template || '';
+
+    if (currentPromptTemplate) {
+        // Mostrar plantilla
+        document.getElementById('prompt-template-card').style.display = 'block';
+        document.getElementById('dynamic-content-card').style.display = 'block';
+
+        // Formatear y mostrar plantilla
+        const templateDisplay = document.getElementById('prompt-template-display');
+        templateDisplay.innerHTML = formatPromptTemplate(currentPromptTemplate);
+    } else {
+        // No tiene prompt configurado
+        document.getElementById('prompt-template-card').style.display = 'none';
+        document.getElementById('dynamic-content-card').style.display = 'none';
+        document.getElementById('final-prompt-card').style.display = 'none';
+
+        showAlert('warning', 'Esta tarea no tiene un prompt configurado. Haz clic en "Editar Prompt" para crear uno.');
+    }
+}
+
+function formatPromptTemplate(template) {
+    // Resaltar placeholders
+    let formatted = template.replace(/{CONTENIDO_DINAMICO}/g,
+        '<span class="badge bg-warning text-dark">{CONTENIDO_DINAMICO}</span>');
+
+    // Convertir saltos de línea
+    formatted = formatted.replace(/\n/g, '<br>');
+
+    return `<div class="prompt-template-content">${formatted}</div>`;
+}
+
+function generateFinalPrompt() {
+    if (!selectedTaskName || !currentPromptTemplate) {
+        showAlert('warning', 'Selecciona una tarea con prompt configurado');
+        return;
+    }
+
+    const dynamicContent = document.getElementById('dynamic-content').value.trim();
+
+    // Generar prompt final
+    let finalPrompt;
+    if (currentPromptTemplate.includes('{CONTENIDO_DINAMICO}')) {
+        if (!dynamicContent) {
+            showAlert('warning', 'Ingresa contenido dinámico para completar el prompt');
+            return;
+        }
+        finalPrompt = currentPromptTemplate.replace(/{CONTENIDO_DINAMICO}/g, dynamicContent);
+    } else {
+        finalPrompt = currentPromptTemplate;
+        if (dynamicContent) {
+            finalPrompt += '\n\nContenido adicional:\n' + dynamicContent;
+        }
+    }
+
+    // Guardar y mostrar
+    finalPromptContent = finalPrompt;
+    document.getElementById('final-prompt-display').innerHTML =
+        `<pre class="mb-0" style="white-space: pre-wrap;">${escapeHtml(finalPrompt)}</pre>`;
+
+    document.getElementById('final-prompt-card').style.display = 'block';
+
+    // Actualizar estadísticas
+    promptsGenerated++;
+    updateStats();
+
+    showAlert('success', 'Prompt final generado correctamente');
+
+    // Scroll al resultado
+    document.getElementById('final-prompt-card').scrollIntoView({ behavior: 'smooth' });
+}
+
+async function copyToClipboard() {
+    if (!finalPromptContent) {
+        showAlert('warning', 'No hay prompt para copiar');
+        return;
+    }
+
+    try {
+        await navigator.clipboard.writeText(finalPromptContent);
+
+        // Actualizar estadísticas
+        promptsCopied++;
+        updateStats();
+
+        showAlert('success', 'Prompt copiado al portapapeles');
+
+        // Animación del botón
+        const btn = event.target.closest('button');
+        const originalText = btn.innerHTML;
+        btn.innerHTML = '<i class="fas fa-check me-1"></i>¡Copiado!';
+        btn.classList.add('btn-outline-success');
+        btn.classList.remove('btn-success');
+
+        setTimeout(() => {
+            btn.innerHTML = originalText;
+            btn.classList.add('btn-success');
+            btn.classList.remove('btn-outline-success');
+        }, 2000);
+
+    } catch (error) {
+        showAlert('danger', 'Error al copiar al portapapeles: ' + error.message);
+    }
+}
+
+function editPromptTemplate() {
+    if (!selectedTaskName) {
+        showAlert('warning', 'Selecciona una tarea primero');
+        return;
+    }
+
+    // Cargar plantilla actual en el editor
+    document.getElementById('prompt-editor').value = currentPromptTemplate;
+    updatePromptPreview();
+
+    // Mostrar modal
+    const modal = new bootstrap.Modal(document.getElementById('editPromptModal'));
+    modal.show();
+}
+
+async function savePromptTemplate() {
+    const newTemplate = document.getElementById('prompt-editor').value.trim();
+
+    try {
+        const response = await fetch(`/api/tasks/update/${encodeURIComponent(selectedTaskName)}`, {
+            method: 'PUT',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                prompt_template: newTemplate
+            })
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+            // Actualizar datos locales
+            selectedTaskData.prompt_template = newTemplate;
+            tasksData[selectedTaskName].prompt_template = newTemplate;
+            currentPromptTemplate = newTemplate;
+
+            // Actualizar UI
+            updatePromptTemplate();
+
+            // Cerrar modal
+            const modal = bootstrap.Modal.getInstance(document.getElementById('editPromptModal'));
+            modal.hide();
+
+            showAlert('success', 'Plantilla de prompt guardada correctamente');
+
+            // Actualizar badge en la lista
+            const taskItem = document.querySelector(`[data-task-name="${selectedTaskName}"]`);
+            const badge = taskItem.querySelector('.badge');
+            if (newTemplate) {
+                badge.className = 'badge badge-prompt';
+                badge.innerHTML = '<i class="fas fa-comments"></i>';
+            } else {
+                badge.className = 'badge badge-no-prompt';
+                badge.innerHTML = '<i class="fas fa-plus"></i>';
+            }
+
+        } else {
+            showAlert('danger', 'Error: ' + data.message);
+        }
+    } catch (error) {
+        showAlert('danger', 'Error de conexión: ' + error.message);
+    }
+}
+
+function updatePromptPreview() {
+    const template = document.getElementById('prompt-editor').value;
+    const preview = document.getElementById('prompt-preview');
+
+    if (template.trim()) {
+        const formatted = template.replace(/{CONTENIDO_DINAMICO}/g,
+            '<span class="badge bg-warning text-dark">[CONTENIDO DINÁMICO]</span>');
+        preview.innerHTML = `<pre style="white-space: pre-wrap;">${escapeHtml(formatted)}</pre>`;
+    } else {
+        preview.innerHTML = '<em class="text-muted">Escribe una plantilla para ver la vista previa...</em>';
+    }
+}
+
+function previewPrompt() {
+    if (!finalPromptContent) {
+        showAlert('warning', 'No hay prompt para previsualizar');
+        return;
+    }
+
+    document.getElementById('preview-content').innerHTML =
+        `<pre style="white-space: pre-wrap;">${escapeHtml(finalPromptContent)}</pre>`;
+
+    const modal = new bootstrap.Modal(document.getElementById('previewModal'));
+    modal.show();
+}
+
+async function copyFromPreview() {
+    await copyToClipboard();
+    const modal = bootstrap.Modal.getInstance(document.getElementById('previewModal'));
+    modal.hide();
+}
+
+function filterPromptTasks() {
+    const searchTerm = document.getElementById('search-prompt-tasks').value.toLowerCase();
+    const taskItems = document.querySelectorAll('.task-prompt-item');
+
+    taskItems.forEach(item => {
+        const taskName = item.querySelector('h6').textContent.toLowerCase();
+        const taskDescription = item.querySelector('p')?.textContent.toLowerCase() || '';
+
+        if (taskName.includes(searchTerm) || taskDescription.includes(searchTerm)) {
+            item.style.display = 'block';
+        } else {
+            item.style.display = 'none';
+        }
+    });
+}
+
+function updateGenerateButton() {
+    // Esta función se puede usar para habilitar/deshabilitar el botón de generar
+    // basado en si hay contenido dinámico
+}
+
+function clearDynamicContent() {
+    document.getElementById('dynamic-content').value = '';
+    document.getElementById('final-prompt-card').style.display = 'none';
+    finalPromptContent = '';
+}
+
+function clearAll() {
+    // Limpiar selección
+    selectedTaskName = null;
+    selectedTaskData = null;
+    currentPromptTemplate = '';
+    finalPromptContent = '';
+
+    // Limpiar UI
+    document.getElementById('search-prompt-tasks').value = '';
+    document.getElementById('dynamic-content').value = '';
+
+    // Ocultar elementos
+    document.getElementById('selected-task-info').style.display = 'none';
+    document.getElementById('prompt-template-card').style.display = 'none';
+    document.getElementById('dynamic-content-card').style.display = 'none';
+    document.getElementById('final-prompt-card').style.display = 'none';
+    document.getElementById('initial-state').style.display = 'block';
+
+    // Quitar highlight
+    document.querySelectorAll('.task-prompt-item').forEach(item => {
+        item.classList.remove('active');
+    });
+
+    filterPromptTasks();
+}
+
+function updateStats() {
+    document.getElementById('prompts-generated').textContent = promptsGenerated;
+    document.getElementById('prompts-copied').textContent = promptsCopied;
+}
+
+function savePromptHistory() {
+    // Funcionalidad futura para guardar historial de prompts
+    showAlert('info', 'Funcionalidad de historial próximamente disponible');
+}
+
+function showPromptHelp() {
+    showAlert('info', 'Ayuda: Selecciona una tarea, pega contenido dinámico y genera tu prompt personalizado');
+}
+
+function showExamples() {
+    const examples = `
+Ejemplos de uso:
+
+1. Análisis de botones HTML:
+   Plantilla: "Determina si este botón está habilitado: {CONTENIDO_DINAMICO}"
+   Contenido: <input type="submit" disabled>
+
+2. Validación de formularios:
+   Plantilla: "Verifica este formulario: {CONTENIDO_DINAMICO}"
+   Contenido: <form>...</form>
+
+3. Análisis de JSON:
+   Plantilla: "Extrae información de: {CONTENIDO_DINAMICO}"
+   Contenido: {"status": "active", "user": "admin"}
+`;
+
+    showAlert('info', examples);
+}
+
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+function showAlert(type, message) {
+    const alertDiv = document.createElement('div');
+    alertDiv.className = `alert alert-${type} alert-dismissible fade show`;
+    alertDiv.innerHTML = `
+        ${message}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    `;
+
+    const container = document.querySelector('main.container-fluid') || document.querySelector('main');
+    if (container) {
+        container.insertBefore(alertDiv, container.firstChild);
+    }
+
+    // Auto-dismiss after 5 seconds
+    setTimeout(() => {
+        if (alertDiv.parentNode) {
+            alertDiv.remove();
+        }
+    }, 5000);
+}
+</script>
+{% endblock %}

@@ -939,6 +939,9 @@ print(response.json())
             self.play_btn.config(state="normal")
             self.save_task_btn.config(state="normal")
             self.status_label.config(text="✅ Grabación completada")
+
+            # Mostrar automáticamente el diálogo para guardar la grabación
+            self.show_save_dialog()
         else:
             self.status_label.config(text="⚠️ No se grabaron eventos")
 
@@ -1046,6 +1049,122 @@ print(response.json())
             text=f"Eventos grabados: {len(self.recorded_events)}"))
 
     # ==================== MÉTODOS DE GESTIÓN DE TAREAS ====================
+
+    def show_save_dialog(self):
+        """Muestra el diálogo para guardar la grabación automáticamente"""
+        if not self.recorded_events:
+            return
+
+        # Crear ventana de diálogo
+        save_dialog = tk.Toplevel(self.root)
+        save_dialog.title("Guardar Grabación")
+        save_dialog.geometry("450x300")
+        save_dialog.transient(self.root)
+        save_dialog.grab_set()
+        save_dialog.resizable(False, False)
+
+        # Centrar la ventana
+        save_dialog.update_idletasks()
+        x = (save_dialog.winfo_screenwidth() // 2) - (450 // 2)
+        y = (save_dialog.winfo_screenheight() // 2) - (300 // 2)
+        save_dialog.geometry(f"450x300+{x}+{y}")
+
+        # Frame principal
+        main_frame = ttk.Frame(save_dialog, padding="20")
+        main_frame.pack(fill=tk.BOTH, expand=True)
+
+        # Título
+        title_label = ttk.Label(main_frame, text="🎉 ¡Grabación Completada!",
+                               font=("Arial", 16, "bold"))
+        title_label.pack(pady=(0, 10))
+
+        # Información de la grabación
+        info_label = ttk.Label(main_frame,
+                              text=f"Se grabaron {len(self.recorded_events)} eventos",
+                              font=("Arial", 11))
+        info_label.pack(pady=(0, 20))
+
+        # Campo para el nombre
+        ttk.Label(main_frame, text="Nombre de la grabación:",
+                 font=("Arial", 10, "bold")).pack(anchor=tk.W, pady=(0, 5))
+
+        name_var = tk.StringVar()
+        name_entry = ttk.Entry(main_frame, textvariable=name_var, width=40, font=("Arial", 10))
+        name_entry.pack(fill=tk.X, pady=(0, 15))
+        name_entry.focus_set()
+
+        # Campo para la descripción (opcional)
+        ttk.Label(main_frame, text="Descripción (opcional):",
+                 font=("Arial", 10, "bold")).pack(anchor=tk.W, pady=(0, 5))
+
+        desc_var = tk.StringVar()
+        desc_entry = ttk.Entry(main_frame, textvariable=desc_var, width=40, font=("Arial", 10))
+        desc_entry.pack(fill=tk.X, pady=(0, 20))
+
+        # Frame para botones
+        buttons_frame = ttk.Frame(main_frame)
+        buttons_frame.pack(pady=(10, 0))
+
+        def save_recording():
+            task_name = name_var.get().strip()
+            if not task_name:
+                messagebox.showwarning("Advertencia", "Por favor ingresa un nombre para la grabación")
+                name_entry.focus_set()
+                return
+
+            if task_name in self.tasks:
+                if not messagebox.askyesno("Confirmar",
+                                         f"La grabación '{task_name}' ya existe. ¿Deseas sobrescribirla?"):
+                    name_entry.focus_set()
+                    return
+
+            task_description = desc_var.get().strip()
+
+            # Crear objeto tarea
+            task = {
+                'name': task_name,
+                'description': task_description,
+                'events': self.recorded_events.copy(),
+                'created_at': datetime.now().isoformat(),
+                'event_count': len(self.recorded_events),
+                'prompt_template': ''
+            }
+
+            # Guardar tarea
+            self.tasks[task_name] = task
+            self.save_tasks_to_file()
+            self.refresh_tasks_list()
+
+            # Cerrar diálogo
+            save_dialog.destroy()
+
+            # Mostrar mensaje de éxito
+            messagebox.showinfo("Éxito", f"Grabación '{task_name}' guardada correctamente")
+
+        def skip_save():
+            save_dialog.destroy()
+
+        # Botones
+        save_btn = ttk.Button(buttons_frame, text="💾 Guardar",
+                             command=save_recording, width=15)
+        save_btn.pack(side=tk.LEFT, padx=(0, 10))
+
+        skip_btn = ttk.Button(buttons_frame, text="⏭️ Omitir",
+                             command=skip_save, width=15)
+        skip_btn.pack(side=tk.LEFT)
+
+        # Permitir guardar con Enter
+        def on_enter(event):
+            save_recording()
+
+        name_entry.bind('<Return>', on_enter)
+        desc_entry.bind('<Return>', on_enter)
+
+        # Generar nombre sugerido basado en timestamp
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        suggested_name = f"grabacion_{timestamp}"
+        name_var.set(suggested_name)
+        name_entry.select_range(0, tk.END)
 
     def save_as_task(self):
         """Guarda la grabación actual como una tarea"""

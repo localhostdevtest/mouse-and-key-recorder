@@ -1,0 +1,392 @@
+{% extends "base.html" %}
+
+{% block title %}Mis Automatizaciones{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2>
+        <i class="fas fa-robot me-2"></i>
+        Mis Automatizaciones
+    </h2>
+    <a href="{{ url_for('index') }}" class="btn btn-success">
+        <i class="fas fa-plus me-1"></i>
+        Crear Nueva
+    </a>
+</div>
+
+<!-- Lista de Automatizaciones -->
+<div id="tasks-container">
+    {% if tasks %}
+        <div class="row" id="tasks-grid">
+            {% for task_name, task in tasks.items() %}
+            <div class="col-md-6 col-lg-4 mb-4" data-task-name="{{ task_name }}">
+                <div class="card h-100 automation-card">
+                    <div class="card-body">
+                        <h5 class="card-title">
+                            <i class="fas fa-cog me-2"></i>
+                            {{ task.name }}
+                        </h5>
+
+                        {% if task.description %}
+                        <p class="card-text text-muted">
+                            {{ task.description }}
+                        </p>
+                        {% else %}
+                        <p class="card-text text-muted">
+                            Sin descripción
+                        </p>
+                        {% endif %}
+
+                        <div class="text-muted small mb-3">
+                            <i class="fas fa-calendar me-1"></i>
+                            {{ task.created_at[:10] }}
+                        </div>
+                    </div>
+
+                    <div class="card-footer bg-transparent">
+                        <div class="d-grid gap-2">
+                            <button class="btn btn-primary" onclick='executeTask(event, {{ task_name|tojson }})'>
+                                <i class="fas fa-play me-1"></i>
+                                EJECUTAR
+                            </button>
+                            <div class="btn-group" role="group">
+                                <button class="btn btn-outline-secondary btn-sm" onclick='editTask(event, {{ task_name|tojson }})'>
+                                    <i class="fas fa-edit me-1"></i>
+                                    Editar
+                                </button>
+                                <button class="btn btn-outline-danger btn-sm" onclick='eliminarTarea({{ task_name|tojson }})'>
+                                    <i class="fas fa-trash me-1"></i>
+                                    Eliminar
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    {% else %}
+        <div class="text-center py-5">
+            <i class="fas fa-robot fa-4x text-muted mb-4"></i>
+            <h4 class="text-muted">No tienes automatizaciones aún</h4>
+            <p class="text-muted mb-4">Crea tu primera automatización grabando las acciones que quieres repetir</p>
+            <a href="{{ url_for('index') }}" class="btn btn-success btn-lg">
+                <i class="fas fa-plus me-2"></i>
+                Crear Mi Primera Automatización
+            </a>
+        </div>
+    {% endif %}
+</div>
+
+<!-- Modal de Edición -->
+<div class="modal fade" id="editTaskModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-edit me-2"></i>
+                    Editar Automatización
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="edit-task-form">
+                    <input type="hidden" id="edit-task-name">
+
+                    <div class="mb-3">
+                        <label for="edit-description" class="form-label">
+                            <i class="fas fa-align-left me-1"></i>
+                            Descripción
+                        </label>
+                        <input type="text" class="form-control" id="edit-description"
+                               placeholder="¿Qué hace esta automatización?">
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-primary" onclick="saveTaskChanges()">
+                    <i class="fas fa-save me-1"></i>
+                    Guardar
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal de Confirmación de Eliminación -->
+<div class="modal fade" id="deleteTaskModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-exclamation-triangle me-2 text-warning"></i>
+                    Eliminar Automatización
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p>¿Estás seguro de que quieres eliminar <strong id="delete-task-name"></strong>?</p>
+                <p class="text-muted small">Esta acción no se puede deshacer.</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-danger" onclick="confirmDeleteTask()">
+                    <i class="fas fa-trash me-1"></i>
+                    Eliminar
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let currentTaskToDelete = null;
+let currentTaskToEdit = null;
+
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('Tasks page loaded');
+});
+
+async function parseApiResponse(response) {
+    const contentType = response.headers.get('content-type') || '';
+
+    if (contentType.includes('application/json')) {
+        return await response.json();
+    }
+
+    const message = await response.text();
+    return {
+        success: false,
+        message: message || `Error HTTP ${response.status}`
+    };
+}
+
+function getTaskElement(taskName) {
+    const taskElements = document.querySelectorAll('#tasks-container [data-task-name]');
+    return Array.from(taskElements).find((element) => element.dataset.taskName === taskName) || null;
+}
+
+function buildEmptyTasksState() {
+    return `
+        <div class="text-center py-5">
+            <i class="fas fa-robot fa-4x text-muted mb-4"></i>
+            <h4 class="text-muted">No tienes automatizaciones aún</h4>
+            <p class="text-muted mb-4">Crea tu primera automatización grabando las acciones que quieres repetir</p>
+            <a href="{{ url_for('index') }}" class="btn btn-success btn-lg">
+                <i class="fas fa-plus me-2"></i>
+                Crear Mi Primera Automatización
+            </a>
+        </div>
+    `;
+}
+
+function renderEmptyTasksStateIfNeeded() {
+    const tasksContainer = document.getElementById('tasks-container');
+    if (!tasksContainer) {
+        return;
+    }
+
+    const remainingTasks = tasksContainer.querySelectorAll('[data-task-name]');
+    if (remainingTasks.length === 0) {
+        tasksContainer.innerHTML = buildEmptyTasksState();
+    }
+}
+
+async function executeTask(event, taskName) {
+    console.log('Ejecutando tarea:', taskName);
+
+    const button = event.currentTarget || event.target.closest('button');
+    const originalText = button.innerHTML;
+
+    button.disabled = true;
+    button.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Ejecutando...';
+
+    try {
+        const response = await fetch(`/api/tasks/execute/${encodeURIComponent(taskName)}`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'}
+        });
+
+        const data = await parseApiResponse(response);
+        console.log('Respuesta execute:', data);
+
+        if (data.success) {
+            showAlert('success', `"${taskName}" se está ejecutando`);
+
+            setTimeout(() => {
+                button.disabled = false;
+                button.innerHTML = originalText;
+            }, 2000);
+        } else {
+            showAlert('danger', 'Error: ' + data.message);
+            button.disabled = false;
+            button.innerHTML = originalText;
+        }
+    } catch (error) {
+        console.error('Error ejecutando tarea:', error);
+        showAlert('danger', 'Error de conexión');
+        button.disabled = false;
+        button.innerHTML = originalText;
+    }
+}
+
+function editTask(event, taskName) {
+    console.log('Editando tarea:', taskName);
+
+    currentTaskToEdit = taskName;
+
+    const taskCard = event.currentTarget.closest('.card');
+    const descriptionElement = taskCard ? taskCard.querySelector('.card-text') : null;
+    const description = descriptionElement ? descriptionElement.textContent.trim() : '';
+
+    const editTaskNameInput = document.getElementById('edit-task-name');
+    const editDescriptionInput = document.getElementById('edit-description');
+
+    if (editTaskNameInput) {
+        editTaskNameInput.value = taskName;
+    }
+
+    if (editDescriptionInput) {
+        editDescriptionInput.value = description === 'Sin descripción' ? '' : description;
+    }
+
+    const modalElement = document.getElementById('editTaskModal');
+    if (modalElement) {
+        const modal = new bootstrap.Modal(modalElement);
+        modal.show();
+    } else {
+        console.error('Modal de edición no encontrado');
+        showAlert('danger', 'Error: No se pudo abrir el formulario de edición');
+    }
+}
+
+async function saveTaskChanges() {
+    console.log('Guardando cambios de tarea');
+
+    const taskNameInput = document.getElementById('edit-task-name');
+    const descriptionInput = document.getElementById('edit-description');
+
+    if (!taskNameInput || !descriptionInput) {
+        console.error('Inputs de edición no encontrados');
+        return;
+    }
+
+    const taskName = taskNameInput.value;
+    const description = descriptionInput.value.trim();
+
+    try {
+        const response = await fetch(`/api/tasks/update/${encodeURIComponent(taskName)}`, {
+            method: 'PUT',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                description: description,
+                prompt_template: ''
+            })
+        });
+
+        const data = await parseApiResponse(response);
+        console.log('Respuesta update:', data);
+
+        if (data.success) {
+            showAlert('success', 'Automatización actualizada');
+
+            const modalElement = document.getElementById('editTaskModal');
+            if (modalElement) {
+                const modal = bootstrap.Modal.getInstance(modalElement);
+                if (modal) {
+                    modal.hide();
+                }
+            }
+
+            setTimeout(() => {
+                location.reload();
+            }, 1000);
+        } else {
+            showAlert('danger', 'Error: ' + data.message);
+        }
+    } catch (error) {
+        console.error('Error guardando cambios:', error);
+        showAlert('danger', 'Error de conexión');
+    }
+}
+
+async function eliminarTarea(taskName) {
+    console.log('ELIMINANDO:', taskName);
+
+    if (!confirm(`¿Estás seguro de eliminar "${taskName}"?`)) {
+        return;
+    }
+
+    const taskElement = getTaskElement(taskName);
+
+    if (taskElement) {
+        taskElement.classList.add('d-none');
+        taskElement.setAttribute('aria-hidden', 'true');
+    }
+
+    try {
+        const response = await fetch(`/api/tasks/delete/${encodeURIComponent(taskName)}`, {
+            method: 'DELETE',
+            headers: {'Content-Type': 'application/json'}
+        });
+
+        const data = await parseApiResponse(response);
+        console.log('Respuesta delete:', data);
+
+        if (!response.ok || !data.success) {
+            throw new Error(data.message || 'No se pudo eliminar la automatización');
+        }
+
+        if (taskElement) {
+            taskElement.remove();
+        }
+
+        renderEmptyTasksStateIfNeeded();
+        showAlert('success', `Automatización "${taskName}" eliminada correctamente`);
+    } catch (error) {
+        if (taskElement) {
+            taskElement.classList.remove('d-none');
+            taskElement.removeAttribute('aria-hidden');
+        }
+
+        console.error('Error eliminando tarea:', error);
+        showAlert('danger', error.message || 'Error de conexión');
+    }
+}
+
+function deleteTask(taskName) {
+    eliminarTarea(taskName);
+}
+
+async function confirmDeleteTask() {
+    console.log('confirmDeleteTask llamada');
+}
+
+function showAlert(type, message) {
+    console.log('Mostrando alerta:', type, message);
+
+    const alertDiv = document.createElement('div');
+    alertDiv.className = `alert alert-${type} alert-dismissible fade show`;
+    alertDiv.innerHTML = `
+        ${message}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    `;
+
+    const container = document.querySelector('main.container-fluid') || document.querySelector('main');
+    if (container) {
+        container.insertBefore(alertDiv, container.firstChild);
+    } else {
+        console.error('Container no encontrado para mostrar alerta');
+    }
+
+    setTimeout(() => {
+        if (alertDiv.parentNode) {
+            alertDiv.remove();
+        }
+    }, 4000);
+}
+</script>
+{% endblock %}

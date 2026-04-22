@@ -1,0 +1,197 @@
+{% extends "base.html" %}
+
+{% block title %}Documentación API{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <h2>
+            <i class="fas fa-book me-2"></i>
+            Documentación de API para Postman
+        </h2>
+        <p class="text-muted mb-4">Todos los endpoints disponibles para usar desde Postman o cualquier cliente HTTP</p>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-3">
+        <!-- Navegación lateral -->
+        <div class="card">
+            <div class="card-header">
+                <h6 class="mb-0">Navegación</h6>
+            </div>
+            <div class="card-body">
+                <nav class="nav flex-column">
+                    <a class="nav-link" href="#basico">Uso Básico</a>
+                    <a class="nav-link" href="#automatizaciones">Automatizaciones</a>
+                    <a class="nav-link" href="#secuencias">Secuencias</a>
+                    <a class="nav-link" href="#grabacion">Grabación</a>
+                    <a class="nav-link" href="#ejemplos">Ejemplos</a>
+                </nav>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-9">
+        <!-- Contenido principal -->
+
+        <!-- Información básica -->
+        <section id="basico" class="mb-5">
+            <div class="card">
+                <div class="card-header">
+                    <h4 class="mb-0">🌐 Información Básica</h4>
+                </div>
+                <div class="card-body">
+                    <p><strong>Base URL:</strong> <code>http://localhost:5000</code></p>
+                    <p><strong>Formato:</strong> Todas las respuestas son JSON</p>
+                    <p><strong>Headers requeridos:</strong> <code>Content-Type: application/json</code> (solo para POST/PUT)</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- Automatizaciones -->
+        <section id="automatizaciones" class="mb-5">
+            <div class="card">
+                <div class="card-header">
+                    <h4 class="mb-0">🎯 Automatizaciones</h4>
+                </div>
+                <div class="card-body">
+
+                    <h6>Listar todas las automatizaciones</h6>
+                    <div class="bg-dark p-3 rounded mb-3">
+                        <code class="text-light">GET /api/tasks/list</code>
+                    </div>
+
+                    <h6>Ejecutar UNA automatización</h6>
+                    <div class="bg-dark p-3 rounded mb-3">
+                        <code class="text-light">POST /api/run/NOMBRE_AUTOMATIZACION</code>
+                    </div>
+                    <p class="small text-muted">Ejemplo: <code>POST /api/run/mi_automatizacion</code></p>
+
+                    <h6>Eliminar automatización</h6>
+                    <div class="bg-dark p-3 rounded mb-3">
+                        <code class="text-light">DELETE /api/tasks/delete/NOMBRE_AUTOMATIZACION</code>
+                    </div>
+
+                </div>
+            </div>
+        </section>
+
+        <!-- Secuencias -->
+        <section id="secuencias" class="mb-5">
+            <div class="card">
+                <div class="card-header">
+                    <h4 class="mb-0">🔄 Secuencias</h4>
+                </div>
+                <div class="card-body">
+
+                    <h6>Ejecutar VARIAS automatizaciones al instante</h6>
+                    <div class="bg-dark p-3 rounded mb-3">
+                        <code class="text-light">POST /api/quick-sequence</code>
+                    </div>
+                    <p class="small">Body JSON:</p>
+                    <pre class="bg-light p-2 rounded"><code>{
+  "tasks": ["automatizacion1", "automatizacion2", "automatizacion3"],
+  "pause_between": 2.0
+}</code></pre>
+
+                    <h6>Crear secuencia permanente</h6>
+                    <div class="bg-dark p-3 rounded mb-3">
+                        <code class="text-light">POST /api/sequences/create</code>
+                    </div>
+                    <p class="small">Body JSON:</p>
+                    <pre class="bg-light p-2 rounded"><code>{
+  "name": "Mi_Secuencia",
+  "tasks": ["automatizacion1", "automatizacion2"],
+  "description": "Descripción opcional",
+  "pause_between": 1.5
+}</code></pre>
+
+                    <h6>Ejecutar secuencia guardada</h6>
+                    <div class="bg-dark p-3 rounded mb-3">
+                        <code class="text-light">POST /api/run-sequence/NOMBRE_SECUENCIA</code>
+                    </div>
+
+                    <h6>Listar secuencias</h6>
+                    <div class="bg-dark p-3 rounded mb-3">
+                        <code class="text-light">GET /api/sequences/list</code>
+                    </div>
+
+                </div>
+            </div>
+        </section>
+
+        <!-- Grabación -->
+        <section id="grabacion" class="mb-5">
+            <div class="card">
+                <div class="card-header">
+                    <h4 class="mb-0">🔴 Control de Grabación</h4>
+                </div>
+                <div class="card-body">
+
+                    <h6>Iniciar grabación</h6>
+                    <div class="bg-dark p-3 rounded mb-3">
+                        <code class="text-light">POST /api/recording/start</code>
+                    </div>
+
+                    <h6>Detener grabación</h6>
+                    <div class="bg-dark p-3 rounded mb-3">
+                        <code class="text-light">POST /api/recording/stop</code>
+                    </div>
+
+                    <h6>Ver estado de grabación</h6>
+                    <div class="bg-dark p-3 rounded mb-3">
+                        <code class="text-light">GET /api/recording/status</code>
+                    </div>
+
+                    <h6>Guardar grabación como automatización</h6>
+                    <div class="bg-dark p-3 rounded mb-3">
+                        <code class="text-light">POST /api/tasks/save</code>
+                    </div>
+                    <p class="small">Body JSON:</p>
+                    <pre class="bg-light p-2 rounded"><code>{
+  "name": "Mi_Automatizacion",
+  "description": "Descripción opcional"
+}</code></pre>
+
+                </div>
+            </div>
+        </section>
+
+        <!-- Ejemplos -->
+        <section id="ejemplos" class="mb-5">
+            <div class="card">
+                <div class="card-header">
+                    <h4 class="mb-0">🚀 Ejemplos Prácticos</h4>
+                </div>
+                <div class="card-body">
+
+                    <h6>Ver todo lo que tienes</h6>
+                    <div class="bg-dark p-3 rounded mb-3">
+                        <code class="text-light">GET http://localhost:5000/api/list-all</code>
+                    </div>
+
+                    <h6>Ejecutar una automatización desde curl</h6>
+                    <div class="bg-dark p-3 rounded mb-3">
+                        <code class="text-light">curl -X POST http://localhost:5000/api/run/mi_automatizacion</code>
+                    </div>
+
+                    <h6>Ejecutar 3 automatizaciones en secuencia desde curl</h6>
+                    <div class="bg-dark p-3 rounded mb-3">
+                        <code class="text-light">curl -X POST http://localhost:5000/api/quick-sequence \<br>
+  -H "Content-Type: application/json" \<br>
+  -d '{"tasks": ["auto1", "auto2", "auto3"], "pause_between": 1.0}'</code>
+                    </div>
+
+                    <div class="alert alert-info">
+                        <h6><i class="fas fa-lightbulb me-2"></i>Tip</h6>
+                        <p class="mb-0">Puedes usar estos endpoints desde Postman, curl, Python requests, o cualquier cliente HTTP. Todos devuelven JSON con <code>{"success": true/false, "message": "..."}</code></p>
+                    </div>
+
+                </div>
+            </div>
+        </section>
+
+    </div>
+</div>
+{% endblock %}

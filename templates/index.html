@@ -1,0 +1,483 @@
+{% extends "base.html" %}
+
+{% block title %}Grabador de Automatizaciones{% endblock %}
+
+{% block content %}
+<div class="row">
+    <!-- Panel Principal -->
+    <div class="col-lg-8">
+        <!-- Crear Nueva Automatización -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h4 class="mb-0">
+                    <i class="fas fa-plus-circle me-2"></i>
+                    Crear Nueva Automatización
+                </h4>
+            </div>
+            <div class="card-body text-center">
+                <!-- Estado -->
+                <div id="recording-status" class="mb-4">
+                    <div class="alert alert-info" role="alert">
+                        <i class="fas fa-info-circle me-2"></i>
+                        <span id="status-text">Listo para grabar una nueva automatización</span>
+                    </div>
+                </div>
+
+                <!-- Botones Principales -->
+                <div class="recording-controls mb-4">
+                    <button id="btn-start-recording" class="btn btn-record btn-lg me-3">
+                        <i class="fas fa-circle me-2"></i>
+                        GRABAR
+                    </button>
+                    <button id="btn-stop-recording" class="btn btn-stop btn-lg" disabled>
+                        <i class="fas fa-stop me-2"></i>
+                        PARAR
+                    </button>
+                </div>
+
+                <p class="text-muted">
+                    Haz clic en GRABAR, realiza las acciones que quieres automatizar, luego haz clic en PARAR
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Panel de Automatizaciones -->
+    <div class="col-lg-4">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-robot me-2"></i>
+                    Mis Automatizaciones ({{ task_count }})
+                </h5>
+            </div>
+            <div class="card-body">
+                {% if task_count > 0 %}
+                    <div id="tasks-list">
+                        <!-- Las tareas se cargarán aquí -->
+                    </div>
+                    <div class="text-center mt-3">
+                        <a href="{{ url_for('tasks') }}" class="btn btn-outline-primary btn-sm">
+                            <i class="fas fa-cog me-1"></i>
+                            Gestionar Todas
+                        </a>
+                    </div>
+                {% else %}
+                    <div class="text-center text-muted">
+                        <i class="fas fa-robot fa-3x mb-3 opacity-50"></i>
+                        <p>Aún no tienes automatizaciones.</p>
+                        <p class="small">Crea tu primera automatización usando el botón GRABAR.</p>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Indicador de Grabación Flotante -->
+<div id="recording-indicator" class="recording-indicator" style="display: none;">
+    <i class="fas fa-circle me-2"></i>
+    GRABANDO...
+</div>
+
+<!-- Modal para Guardar Automatización -->
+<div class="modal fade" id="saveRecordingModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-save me-2"></i>
+                    Guardar Automatización
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="text-center mb-3">
+                    <i class="fas fa-check-circle text-success fa-3x mb-2"></i>
+                    <h6>¡Automatización creada exitosamente!</h6>
+                    <p class="text-muted">Dale un nombre para poder usarla después</p>
+                </div>
+                <form id="quick-save-form">
+                    <div class="mb-3">
+                        <label for="recording-name" class="form-label">
+                            <i class="fas fa-tag me-1"></i>
+                            Nombre de la automatización
+                        </label>
+                        <input type="text" class="form-control" id="recording-name"
+                               placeholder="Ej: Abrir Excel y crear reporte" required>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    <i class="fas fa-times me-1"></i>
+                    Cancelar
+                </button>
+                <button type="button" class="btn btn-success" id="btn-quick-save">
+                    <i class="fas fa-save me-1"></i>
+                    Guardar
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Variables simples
+let isRecording = false;
+let isStopping = false;
+window.webRecordingUiState = { isRecording: false, isStopping: false };
+
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('DOM cargado, inicializando...');
+
+    // Event listeners básicos
+    document.getElementById('btn-start-recording').addEventListener('click', startRecording);
+    document.getElementById('btn-stop-recording').addEventListener('click', stopRecording);
+    document.getElementById('btn-quick-save').addEventListener('click', quickSaveRecording);
+
+    // Permitir Enter en el modal
+    const recordingNameInput = document.getElementById('recording-name');
+    if (recordingNameInput) {
+        recordingNameInput.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                quickSaveRecording();
+            }
+        });
+    }
+
+    // Cargar automatizaciones
+    loadTasks();
+    updateUI();
+});
+
+async function startRecording() {
+    console.log('Iniciando grabación...');
+
+    const startBtn = document.getElementById('btn-start-recording');
+    const originalText = startBtn.innerHTML;
+    const previousState = isRecording;
+
+    isStopping = false;
+    isRecording = true;
+    updateUI();
+
+    try {
+        const response = await fetch('/api/recording/start', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'}
+        });
+
+        const data = await response.json();
+        console.log('Respuesta start:', data);
+
+        if (data.success) {
+            try {
+                showAlert('success', 'Grabación iniciada - Realiza las acciones que quieres automatizar');
+            } catch (alertError) {
+                console.error('Error mostrando alerta de inicio:', alertError);
+            }
+        } else {
+            isRecording = previousState;
+            updateUI();
+            showAlert('danger', 'Error: ' + data.message);
+            startBtn.disabled = false;
+            startBtn.innerHTML = originalText;
+        }
+    } catch (error) {
+        console.error('Error en startRecording:', error);
+        isRecording = previousState;
+        updateUI();
+        showAlert('danger', 'Error de conexión');
+        startBtn.disabled = false;
+        startBtn.innerHTML = originalText;
+    }
+}
+
+async function stopRecording() {
+    console.log('Deteniendo grabación...');
+
+    const stopBtn = document.getElementById('btn-stop-recording');
+    const originalText = stopBtn.innerHTML;
+    const previousState = isRecording;
+
+    isStopping = true;
+    isRecording = false;
+    updateUI();
+
+    try {
+        const response = await fetch('/api/recording/stop', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'}
+        });
+
+        const data = await response.json();
+        console.log('Respuesta stop:', data);
+
+        if (data.success) {
+            isStopping = false;
+            updateUI();
+            console.log('Event count:', data.event_count);
+
+            if (data.event_count && data.event_count > 0) {
+                // Limpiar el campo de nombre
+                const recordingNameInput = document.getElementById('recording-name');
+                if (recordingNameInput) {
+                    recordingNameInput.value = '';
+                }
+
+                // Mostrar modal
+                const modalElement = document.getElementById('saveRecordingModal');
+                if (modalElement) {
+                    console.log('Mostrando modal...');
+                    const modal = new bootstrap.Modal(modalElement);
+                    modal.show();
+
+                    // Focus en el input después de que se abra el modal
+                    setTimeout(() => {
+                        if (recordingNameInput) {
+                            recordingNameInput.focus();
+                        }
+                    }, 500);
+
+                    showAlert('success', 'Automatización grabada correctamente');
+                } else {
+                    console.error('Modal no encontrado');
+                    showAlert('danger', 'Error: No se pudo mostrar el formulario de guardado');
+                }
+            } else {
+                showAlert('warning', 'No se detectaron acciones para automatizar');
+            }
+        } else {
+            isStopping = false;
+            isRecording = previousState;
+            updateUI();
+            showAlert('danger', 'Error: ' + data.message);
+            stopBtn.disabled = false;
+            stopBtn.innerHTML = originalText;
+        }
+    } catch (error) {
+        console.error('Error en stopRecording:', error);
+        isStopping = false;
+        isRecording = previousState;
+        updateUI();
+        showAlert('danger', 'Error de conexión');
+        stopBtn.disabled = false;
+        stopBtn.innerHTML = originalText;
+    }
+}
+
+function updateUI() {
+    console.log('Actualizando UI - isRecording:', isRecording);
+
+    const startBtn = document.getElementById('btn-start-recording');
+    const stopBtn = document.getElementById('btn-stop-recording');
+    const statusText = document.getElementById('status-text');
+    const recordingStatus = document.getElementById('recording-status');
+    const recordingIndicator = document.getElementById('recording-indicator');
+
+    if (!startBtn || !stopBtn || !statusText || !recordingStatus || !recordingIndicator) {
+        console.error('Algunos elementos de UI no se encontraron');
+        return;
+    }
+
+    if (isRecording) {
+        startBtn.disabled = true;
+        startBtn.innerHTML = '<i class="fas fa-circle me-2"></i>GRABAR';
+        stopBtn.disabled = false;
+        stopBtn.innerHTML = '<i class="fas fa-stop me-2"></i>PARAR';
+
+        statusText.textContent = 'GRABANDO - Realiza las acciones que quieres automatizar';
+        recordingStatus.className = 'alert alert-danger';
+        recordingIndicator.style.display = 'block';
+
+        console.log('UI actualizada: GRABANDO');
+    } else if (isStopping) {
+        startBtn.disabled = true;
+        startBtn.innerHTML = '<i class="fas fa-circle me-2"></i>GRABAR';
+        stopBtn.disabled = true;
+        stopBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Deteniendo...';
+
+        statusText.textContent = 'DETENIENDO - Guardando la grabación...';
+        recordingStatus.className = 'alert alert-warning';
+        recordingIndicator.style.display = 'block';
+
+        console.log('UI actualizada: DETENIENDO');
+    } else {
+        startBtn.disabled = false;
+        startBtn.innerHTML = '<i class="fas fa-circle me-2"></i>GRABAR';
+        stopBtn.disabled = true;
+        stopBtn.innerHTML = '<i class="fas fa-stop me-2"></i>PARAR';
+
+        statusText.textContent = 'Listo para grabar una nueva automatización';
+        recordingStatus.className = 'alert alert-info';
+        recordingIndicator.style.display = 'none';
+
+        console.log('UI actualizada: LISTO');
+    }
+
+    updateNavbarRecordingStatus(isRecording);
+    window.webRecordingUiState = { isRecording, isStopping };
+}
+
+function updateNavbarRecordingStatus(recording) {
+    const statusIndicator = document.getElementById('status-indicator');
+    if (!statusIndicator) {
+        return;
+    }
+
+    if (isStopping) {
+        statusIndicator.classList.remove('d-none');
+        statusIndicator.className = 'badge bg-warning text-dark';
+        statusIndicator.innerHTML = '<i class="fas fa-circle me-1"></i>Deteniendo';
+    } else if (recording) {
+        statusIndicator.classList.remove('d-none');
+        statusIndicator.className = 'badge bg-danger recording';
+        statusIndicator.innerHTML = '<i class="fas fa-circle me-1"></i>Grabando';
+    } else {
+        statusIndicator.classList.add('d-none');
+    }
+}
+
+async function quickSaveRecording() {
+    const nameInput = document.getElementById('recording-name');
+    if (!nameInput) {
+        console.error('Input de nombre no encontrado');
+        return;
+    }
+
+    const name = nameInput.value.trim();
+
+    if (!name) {
+        showAlert('warning', 'Escribe un nombre para la automatización');
+        nameInput.focus();
+        return;
+    }
+
+    const saveBtn = document.getElementById('btn-quick-save');
+    const originalText = saveBtn.innerHTML;
+
+    saveBtn.disabled = true;
+    saveBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Guardando...';
+
+    try {
+        const response = await fetch('/api/tasks/save', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                name: name,
+                description: '',
+                prompt_template: ''
+            })
+        });
+
+        const data = await response.json();
+        console.log('Respuesta save:', data);
+
+        if (data.success) {
+            // Cerrar modal
+            const modalElement = document.getElementById('saveRecordingModal');
+            if (modalElement) {
+                const modal = bootstrap.Modal.getInstance(modalElement);
+                if (modal) {
+                    modal.hide();
+                }
+            }
+
+            showAlert('success', `"${name}" guardada correctamente`);
+
+            // Recargar lista de tareas
+            setTimeout(() => {
+                loadTasks();
+            }, 1000);
+        } else {
+            showAlert('danger', 'Error: ' + data.message);
+        }
+    } catch (error) {
+        console.error('Error en quickSaveRecording:', error);
+        showAlert('danger', 'Error de conexión');
+    } finally {
+        saveBtn.disabled = false;
+        saveBtn.innerHTML = originalText;
+    }
+}
+
+async function loadTasks() {
+    try {
+        const response = await fetch('/api/tasks/list');
+        const data = await response.json();
+
+        const tasksList = document.getElementById('tasks-list');
+        if (!tasksList) return;
+
+        if (data.tasks && Object.keys(data.tasks).length > 0) {
+            let html = '';
+            for (const [taskName, task] of Object.entries(data.tasks)) {
+                html += `
+                    <div class="task-item mb-2 p-2 border rounded">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <strong>${taskName}</strong>
+                                ${task.description ? `<br><small class="text-muted">${task.description}</small>` : ''}
+                            </div>
+                            <button class="btn btn-primary btn-sm" onclick="executeTask('${taskName}')">
+                                <i class="fas fa-play me-1"></i>
+                                Ejecutar
+                            </button>
+                        </div>
+                    </div>
+                `;
+            }
+            tasksList.innerHTML = html;
+        } else {
+            tasksList.innerHTML = '<p class="text-muted text-center">No hay automatizaciones aún</p>';
+        }
+    } catch (error) {
+        console.error('Error cargando tareas:', error);
+    }
+}
+
+async function executeTask(taskName) {
+    try {
+        const response = await fetch(`/api/tasks/execute/${encodeURIComponent(taskName)}`, {
+            method: 'POST'
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+            showAlert('success', `Ejecutando "${taskName}"`);
+        } else {
+            showAlert('danger', 'Error: ' + data.message);
+        }
+    } catch (error) {
+        console.error('Error ejecutando tarea:', error);
+        showAlert('danger', 'Error de conexión');
+    }
+}
+
+function showAlert(type, message) {
+    console.log('Mostrando alerta:', type, message);
+
+    const alertDiv = document.createElement('div');
+    alertDiv.className = `alert alert-${type} alert-dismissible fade show`;
+    alertDiv.innerHTML = `
+        ${message}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    `;
+
+    const container = document.querySelector('main .container-fluid');
+    if (container) {
+        container.insertBefore(alertDiv, container.firstChild);
+    }
+
+    setTimeout(() => {
+        if (alertDiv.parentNode) {
+            alertDiv.remove();
+        }
+    }, 4000);
+}
+</script>
+{% endblock %}
